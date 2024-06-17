@@ -1,9 +1,12 @@
 [tool.poetry]
 name = "parabellum"
-version = "0.1.0"
+version = "0.1.1"
 description = "Parabellum environment for parallel warfare simulation"
-authors = ["Noah Syrkis <noah@syrkis.com>"]
+authors = ["Noah Syrkis <desk@syrkis.com>"]
 readme = "README.md"
+repository = "https://github.com/syrkis/parabellum"
+license = "MIT"
+keywords = ["warfare", "simulation", "parallel", "environment"]
 
 [tool.poetry.dependencies]
 python = "^3.11"
@@ -12,7 +15,6 @@ moviepy = "^1.0.3"
 jupyterlab = "^4.2.2"
 darkdetect = "^0.8.0"
 jaxmarl = "0.0.3"
-
 
 [build-system]
 requires = ["poetry-core"]

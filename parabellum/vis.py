@@ -24,6 +24,8 @@ action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
 class Visualizer(SMAXVisualizer):
     def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None):
         super().__init__(env, state_seq, reward_seq)
+        # remove fig and ax from super
+        self.fig, self.ax = None, None
         self.bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
         self.fg = (235, 235, 235) if darkdetect.isDark() else (20, 20, 20)
         self.s = 1000
@@ -121,18 +123,16 @@ class Visualizer(SMAXVisualizer):
                 bullets = self.bullet_seq[idx // 8]
                 self.render_bullets(screen, bullets, idx % 8)
 
-            # draw 4 black rectangles in the padding to cover up overflow of units
-            rect = (0, 0, self.s, self.s)
-            pygame.draw.rect(screen, self.fg, rect, 2)
-
             # rotate the screen and append to frames
             frames.append(pygame.surfarray.pixels3d(screen).swapaxes(0, 1))
 
         # save the images
-        clip = ImageSequenceClip(frames, fps=24)
-        clip.write_videofile(save_fname, fps=24)
+        clip = ImageSequenceClip(frames, fps=48)
+        clip.write_videofile(save_fname, fps=48)
         # clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
         pygame.quit()
+
+        return clip
 
 
 # functions
