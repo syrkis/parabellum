@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "parabellum"
+version = "0.1.0"
+description = "Parabellum environment for parallel warfare simulation"
+authors = ["Noah Syrkis <noah@syrkis.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+jaxmarl = "^0.0.4"
+pygame = "^2.5.2"
+moviepy = "^1.0.3"
+jupyterlab = "^4.2.2"
+darkdetect = "^0.8.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
