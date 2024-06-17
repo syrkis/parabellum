@@ -21,7 +21,7 @@ from collections import defaultdict
 action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
 
 
-class ParabellumVisualizer(SMAXVisualizer):
+class Visualizer(SMAXVisualizer):
     def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None):
         super().__init__(env, state_seq, reward_seq)
         self.bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
@@ -220,5 +220,5 @@ if __name__ == "__main__":
         rng, key_step = random.split(rng)
         obs, state, reward, done, infos = env.step(key_step, state, actions)
 
-    vis = ParabellumVisualizer(env, state_seq)
+    vis = Visualizer(env, state_seq)
     vis.animate()
