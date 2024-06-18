@@ -17,7 +17,6 @@ from collections import defaultdict
 
 
 # constants
-
 action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
 
 
