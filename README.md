@@ -21,7 +21,11 @@ import parabellum as pb
 ## TODO
 
 - [ ] Parallel pygame vis
-- [ ] Color for for health?
-- [ ] Add ability to see ongoing game.
+- [ ] Color for health?
+- [ ] Add the ability to see ongoing game.
 - [ ] Bug test friendly fire.
-- [ ] Start sim for arbitrary state.
+- [ ] Start sim from arbitrary state.
+- [ ] Save when the episode ends in some state/obs variable
+- [ ] Look for the source of the bug when using more Allies than Enemies
+- [ ] Y inversed axis for parabellum visualization
+- [ ] Units see through obstacles? 
