@@ -14,6 +14,10 @@ pip install parabellum
 
 ## Usage
 
+Parabellum is designed to be used in conjunction with JAX, a high-performance
+numerical computing library. Here is a simple example of how to use Parabellum
+to simulate a game with 10 agents and 10 enemies, each taking random actions.
+
 ```python
 import parabellum as pb
 from jax import random
