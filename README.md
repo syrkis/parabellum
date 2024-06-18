@@ -34,6 +34,7 @@ rng, key = random.split(rng)
 obs, state = env.reset(key)
 state_sequence = []
 
+
 for _ in range(1000):
 
     # manage stochasticity
