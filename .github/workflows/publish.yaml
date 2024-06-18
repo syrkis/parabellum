@@ -21,7 +21,6 @@ jobs:
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
         run: |  # poetry version must be set to tag name
-            poetry install
             version=$(git describe --tags --abbrev=0)
             poetry version $version
             poetry publish --build
