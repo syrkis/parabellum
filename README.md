@@ -33,10 +33,10 @@ for _ in range(1000):
 
     # manage stochasticity
     rng, rng_act, key_step = random.split(key)
-    key_act = random.split(rng_act, len(obs.keys()))
+    key_act = random.split(rng_act, len(env.agents))
 
     # sample actions and append to state sequence
-    actions = {a: env.action_space(a).sample(k) for a, k in zip(obs.keys(), key_act)}
+    actions = {a: env.action_space(a).sample(k) for a, k in zip(env.agents, key_act)}
     state_sequence.append((key_act, state, actions))
 
     # step the environment
