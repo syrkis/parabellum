@@ -19,7 +19,8 @@ import parabellum as pb
 from jax import random
 
 # create the environment
-env = pb.Parabellum()
+kwargs = dict(map_width=256, map_height=256, num_agents=10, num_enemies=10)
+env = pb.Parabellum(**kwargs)
 
 # initiate stochasticity
 rng = random.PRNGKey(0)
