@@ -6,7 +6,7 @@ support a wide range of new features and improvements.
 
 ## Installation
 
-Install through PyPI:
+`parabellum` is python3.11 based. Install it through PyPI:
 
 ```bash
 pip install parabellum
