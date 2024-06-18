@@ -20,4 +20,7 @@ import parabellum as pb
 
 ## TODO
 
+- [ ] Parallel pygame vis
 - [ ] Color for for health?
+- [ ] Add ability to see ongoing game.
+- [ ] Bug test friendly fire.
