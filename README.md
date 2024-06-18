@@ -28,7 +28,7 @@ scenario = pb.Scenario(**kwargs)  # <- Scenario is an important part of parabell
 
 # create the environment
 kwargs = dict(map_width=256, map_height=256, num_agents=10, num_enemies=10)
-env = pb.Parabellum(**kwargs)  # <- Parabellum is the main class of parabellum
+env = pb.Parabellum(**kwargs)  # <- Parabellum is the central class of parabellum
 
 # initiate stochasticity
 rng = random.PRNGKey(0)
@@ -37,7 +37,6 @@ rng, key = random.split(rng)
 # initialize the environment state
 obs, state = env.reset(key)
 state_sequence = []
-
 
 for _ in range(1000):
 
