@@ -22,9 +22,13 @@ to simulate a game with 10 agents and 10 enemies, each taking random actions:
 import parabellum as pb
 from jax import random
 
+# define the scenario
+kwargs = dict(obstacle_coords=[(7, 7)], obstacle_deltas=[(10, 0)])
+scenario = pb.Scenario(**kwargs)  # <- Scenario is an important part of parabellum
+
 # create the environment
 kwargs = dict(map_width=256, map_height=256, num_agents=10, num_enemies=10)
-env = pb.Parabellum(**kwargs)
+env = pb.Parabellum(**kwargs)  # <- Parabellum is the main class of parabellum
 
 # initiate stochasticity
 rng = random.PRNGKey(0)
@@ -51,9 +55,14 @@ for _ in range(1000):
 
 
 # save visualization of the state sequence
-vis = pb.Visualizer(env, state_sequence)
+vis = pb.Visualizer(env, state_sequence)  # <- Visualizer is a nice to have class
 vis.animate()
 ```
+
+
+## Features
+
+- Obstacles — can be inserted in
 
 ## TODO
 
