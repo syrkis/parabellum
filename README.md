@@ -24,3 +24,4 @@ import parabellum as pb
 - [ ] Color for for health?
 - [ ] Add ability to see ongoing game.
 - [ ] Bug test friendly fire.
+- [ ] Start sim for arbitrary state.
