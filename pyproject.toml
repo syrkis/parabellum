@@ -20,8 +20,7 @@ poetry = "^1.8.3"
 enable = true
 vcs = "git"
 style = "semver"
-strict = true
-pattern = "^v(?P<base>\\d+(\\.\\d+)*)"
+dirty = true
 
 [build-system]
 requires = ["poetry-core", "poetry-dynamic-versioning"]
