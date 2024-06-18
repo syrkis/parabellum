@@ -22,5 +22,4 @@ jobs:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
         run: |
           poetry build
-          poetry version $(git describe --tags --abbrev=0)  # Set the version based on the Git tag
           poetry publish
