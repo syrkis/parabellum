@@ -16,6 +16,24 @@ pip install parabellum
 
 ```python
 import parabellum as pb
+from jax import random
+
+rng, key = random.split(random.PRNGKey(0))
+env = pb.Parabellum()
+obs, state = env.reset(rng)
+
+state_sequence = []
+
+for _ in range(1000):
+    rng, rng_act, key_step = random.split(key)
+    key_act = random.split(rng_act, len(obs.keys())) 
+    actions = {a: env.action_space(a).sample(k) for a, k in zip(obs.keys(), key_act)}
+    state_sequence.append((key_act, state, actions))
+    obs, reward, done, state = env.step(key_step, action, state)
+
+
+vis = pb.Visualizer(env, state_sequence)
+vis.animate()
 ```
 
 ## TODO
