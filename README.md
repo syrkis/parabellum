@@ -15,25 +15,28 @@ pip install parabellum
 ## Usage
 
 ```python
-import parabellum as pb
-from jax import random
+import parabellum as pb  # import the library
+from jax import random  # random for stochasticity
 
-rng, key = random.split(random.PRNGKey(0))
-env = pb.Parabellum()
-obs, state = env.reset(rng)
+env = pb.Parabellum()  # create the environment
 
-state_sequence = []
+rng, key = random.split(random.PRNGKey(0))  # create a random key
+obs, state = env.reset(rng)  # get initial observation and state
 
-for _ in range(1000):
-    rng, rng_act, key_step = random.split(key)
-    key_act = random.split(rng_act, len(obs.keys())) 
-    actions = {a: env.action_space(a).sample(k) for a, k in zip(obs.keys(), key_act)}
-    state_sequence.append((key_act, state, actions))
-    obs, reward, done, state = env.step(key_step, action, state)
+state_sequence = []  # store the state sequence for later use (visualization, etc.)
+
+for _ in range(1000):  # run the simulation for 1000 steps
+    rng, rng_act, key_step = random.split(key)  # split the random key
+    key_act = random.split(rng_act, len(obs.keys()))  # split the random key for each agent
+
+    actions = {a: env.action_space(a).sample(k) for a, k in zip(obs.keys(), key_act)}  # sample actions
+    state_sequence.append((key_act, state, actions))  # store the state sequence
+
+    obs, reward, done, state = env.step(key_step, action, state)  # perform a step
 
 
-vis = pb.Visualizer(env, state_sequence)
-vis.animate()
+vis = pb.Visualizer(env, state_sequence)  # create a visualizer
+vis.animate()  # save the animation to a file
 ```
 
 ## TODO
