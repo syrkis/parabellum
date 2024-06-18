@@ -6,7 +6,7 @@ support a wide range of new features and improvements.
 
 ## Installation
 
-`parabellum` is python3.11 based. Install it through PyPI:
+Parabellum is written in Python 3.11 and can be installed using pip:
 
 ```bash
 pip install parabellum
@@ -16,7 +16,7 @@ pip install parabellum
 
 Parabellum is designed to be used in conjunction with JAX, a high-performance
 numerical computing library. Here is a simple example of how to use Parabellum
-to simulate a game with 10 agents and 10 enemies, each taking random actions.
+to simulate a game with 10 agents and 10 enemies, each taking random actions:
 
 ```python
 import parabellum as pb
