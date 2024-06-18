@@ -36,10 +36,11 @@ for _ in range(1000):
     key_act = random.split(rng_act, len(env.agents))
 
     # sample actions and append to state sequence
-    act = {a: env.action_space(a).sample(k) for a, k in zip(env.agents, key_act)}
-    state_sequence.append((key_act, state, act))
+    act = {a: env.action_space(a).sample(k)
+        for a, k in zip(env.agents, key_act)}
 
     # step the environment
+    state_sequence.append((key_act, state, act))
     obs, state, reward, done, info = env.step(key_step, act, state)
 
 
