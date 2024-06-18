@@ -1,5 +1,6 @@
 [tool.poetry]
 name = "parabellum"
+version = "0.0.0"
 description = "Parabellum environment for parallel warfare simulation"
 authors = ["Noah Syrkis <desk@syrkis.com>"]
 readme = "README.md"
@@ -20,8 +21,9 @@ poetry = "^1.8.3"
 enable = true
 vcs = "git"
 style = "semver"
-dirty = true
+strict = true
+pattern = "^v(?P<base>\\d+(\\.\\d+)*)"
 
 [build-system]
-requires = ["poetry-core", "poetry-dynamic-versioning"]
-build-backend = "poetry.core.masonry.api"
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
