@@ -1,6 +1,5 @@
 [tool.poetry]
 name = "parabellum"
-version = "0.1.0"
 description = "Parabellum environment for parallel warfare simulation"
 authors = ["Noah Syrkis <desk@syrkis.com>"]
 readme = "README.md"
