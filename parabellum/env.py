@@ -224,18 +224,24 @@ class Parabellum(SMAX):
             perform_agent_action
         )(jnp.arange(self.num_agents), actions, keys)
 
-        # checked that no unit passed through an obstacles 
+        # units push each other
         new_pos = self._our_push_units_away(pos, state.unit_types)
 
         # avoid going into obstacles after being pushed 
-        obs = self.obstacle_coords
-        obs_end = obs + self.obstacle_deltas
-   
-        def check_obstacles(pos, new_pos, obs, obs_end):
-            inters = jnp.any(inter_fn(pos, new_pos, obs, obs_end))
+        
+        bondaries_coords = jnp.array([[0, 0], [0, 0], [self.map_width, 0], [0, self.map_height]])
+        bondaries_deltas = jnp.array([[self.map_width, 0], [0, self.map_height],  [0, self.map_height], [self.map_width, 0]])
+        obstacle_coords = jnp.concatenate([self.obstacle_coords, bondaries_coords]) # add the map boundaries to the obstacles to avoid
+        obstacle_deltas = jnp.concatenate([self.obstacle_deltas, bondaries_deltas]) # add the map boundaries to the obstacles to avoid
+        obst_start = obstacle_coords
+        obst_end = obst_start + obstacle_deltas
+
+        
+        def check_obstacles(pos, new_pos, obst_start, obst_end):
+            inters = jnp.any(inter_fn(pos, new_pos, obst_start, obst_end))
             return jnp.where(inters, pos, new_pos)
         
-        pos = jax.vmap(check_obstacles, in_axes=(0,0,None,None))(pos, new_pos, obs, obs_end)
+        pos = jax.vmap(check_obstacles, in_axes=(0,0,None,None))(pos, new_pos, obst_start, obst_end)
         
         # Multiple enemies can attack the same unit.
         # We have `(health_diff, attacked_idx)` pairs.
