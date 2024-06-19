@@ -1,5 +1,7 @@
 """Visualizer for the Parabellum environment"""
 
+# # import
+
 from tqdm import tqdm
 import jax.numpy as jnp
 import jax
@@ -19,6 +21,8 @@ from collections import defaultdict
 # constants
 action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
 
+
+# # Visualizer
 
 class Visualizer(SMAXVisualizer):
     def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None):
@@ -134,7 +138,8 @@ class Visualizer(SMAXVisualizer):
         return clip
 
 
-# functions
+# # functions
+
 # bullet functions
 def dist_fn(env, pos):  # computing the distances between all ally and enemy agents
     delta = pos[None, :, :] - pos[:, None, :]
@@ -199,32 +204,34 @@ def bullet_fn(env, states):
     return bullet_seq
 
 
-# test the visualizer
+# # test the visualizer
+
 if __name__ == "__main__":
     from parabellum import Parabellum, Scenario
     from jax import random, numpy as jnp
-
+    
     s = Scenario(jnp.array([[16, 0]]),
                 jnp.array([[0, 32]]) * 8,
-                jnp.zeros((19,), dtype=jnp.uint8),
-                9,
-                 10)
+                jnp.zeros((11,), dtype=jnp.uint8),
+                5,
+                 6)
+    n_envs = 6
     env = Parabellum(map_width=32, map_height=32, walls_cause_death=False, scenario=s)
-    rng, key = random.split(random.PRNGKey(0))
-    obs, state = env.reset(key)
+    rng, reset_key = random.split(random.PRNGKey(0))
+    reset_key = random.split(reset_key, n_envs)
+    obs, state = vmap(env.reset)(reset_key)
     state_seq = []
-    for step in range(50):
+    for step in range(10):
         rng, key = random.split(rng)
         key_act = random.split(key, len(env.agents))
         actions = {
-            agent: jnp.array(1)
+            agent: jnp.array([1]*n_envs)
             for i, agent in enumerate(env.agents)
         }
         state_seq.append((key, state, actions))
         rng, key_step = random.split(rng)
-        obs, state, reward, done, infos = env.step(key_step, state, actions)
+        env_step = random.split(key_step, n_envs)
 
-    vis = Visualizer(env, state_seq)
-    vis.animate()
+        obs, state, reward, done, infos = vmap(env.step)(env_step, state, actions )
 
 
