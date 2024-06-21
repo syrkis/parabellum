@@ -53,7 +53,59 @@ class Parabellum(SMAX):
         self.max_steps = 200
         # overwrite supers _world_step method
 
-    
+    @partial(jax.jit, static_argnums=(0,))
+    def reset(self, key: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
+        """Environment-specific reset."""
+        key, team_0_key, team_1_key = jax.random.split(key, num=3)
+        team_0_start = jnp.stack([jnp.array([self.map_width / 4, self.map_height / 2])] * self.num_allies)
+        team_0_start_noise = jax.random.uniform(
+            team_0_key, shape=(self.num_allies, 2), minval=-2, maxval=2
+        )
+        team_0_start = team_0_start + team_0_start_noise
+        team_1_start = jnp.stack([jnp.array([self.map_width / 4 * 3, self.map_height / 2])] * self.num_enemies)
+        team_1_start_noise = jax.random.uniform(
+            team_1_key, shape=(self.num_enemies, 2), minval=-2, maxval=2
+        )
+        team_1_start = team_1_start + team_1_start_noise
+        unit_positions = jnp.concatenate([team_0_start, team_1_start])
+        key, pos_key = jax.random.split(key)
+        generated_unit_positions = self.position_generator.generate(pos_key)
+        unit_positions = jax.lax.select(
+            self.smacv2_position_generation, generated_unit_positions, unit_positions
+        )
+        unit_teams = jnp.zeros((self.num_agents,))
+        unit_teams = unit_teams.at[self.num_allies :].set(1)
+        unit_weapon_cooldowns = jnp.zeros((self.num_agents,))
+        # default behaviour spawn all marines
+        unit_types = (
+            jnp.zeros((self.num_agents,), dtype=jnp.uint8)
+            if self.scenario is None
+            else self.scenario
+        )
+        key, unit_type_key = jax.random.split(key)
+        generated_unit_types = self.unit_type_generator.generate(unit_type_key)
+        unit_types = jax.lax.select(
+            self.smacv2_unit_type_generation, generated_unit_types, unit_types
+        )
+        unit_health = self.unit_type_health[unit_types]
+        state = State(
+            unit_positions=unit_positions,
+            unit_alive=jnp.ones((self.num_agents,), dtype=jnp.bool_),
+            unit_teams=unit_teams,
+            unit_health=unit_health,
+            unit_types=unit_types,
+            prev_movement_actions=jnp.zeros((self.num_agents, 2)),
+            prev_attack_actions=jnp.zeros((self.num_agents,), dtype=jnp.int32),
+            time=0,
+            terminal=False,
+            unit_weapon_cooldowns=unit_weapon_cooldowns,
+        )
+        state = self._push_units_away(state)
+        obs = self.get_obs(state)
+        world_state = self.get_world_state(state)
+        obs["world_state"] = jax.lax.stop_gradient(world_state)
+        return obs, state
+        
     def _push_units_away(self, state: State, firmness: float = 1.0): # we do it inside the _world_step to allow more obstacles constraints
         return state
 
