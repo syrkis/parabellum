@@ -7,6 +7,7 @@ from jax import random
 from jax import jit
 from flax.struct import dataclass
 import chex
+from jax import vmap
 from jaxmarl.environments.smax.smax_env import State, SMAX
 from typing import Tuple, Dict
 from functools import partial
@@ -16,7 +17,7 @@ from functools import partial
 class Scenario:
     """Parabellum scenario"""
 
-    obstacle_coords: chex.Array
+    obstacle_coords: chex.Array  # TODO: use map instead of obstacles
     obstacle_deltas: chex.Array
 
     unit_types: chex.Array
@@ -32,6 +33,8 @@ scenarios = {
     "default": Scenario(
         jnp.array([[6, 10], [26, 10]]) * 8,
         jnp.array([[0, 12], [0, 1]]) * 8,
+        jnp.array([[6, 10], [26, 10]]) * 8,
+        jnp.array([[0, 12], [0, 1]]) * 8,
         jnp.zeros((19,), dtype=jnp.uint8),
         9,
         10,
@@ -40,24 +43,17 @@ scenarios = {
 
 
 class Parabellum(SMAX):
-    def __init__(
-        self,
-        scenario: Scenario = scenarios["default"],
-        unit_type_attack_blasts=jnp.array([0, 0, 0, 0, 0, 0]) + 8,
-        **kwargs,
-    ):
-        super().__init__(scenario=scenario, **kwargs)
-        self.unit_type_attack_blasts = unit_type_attack_blasts
-        self.obstacle_coords = scenario.obstacle_coords.astype(jnp.float32)
-        self.obstacle_deltas = scenario.obstacle_deltas.astype(jnp.float32)
+    def __init__(self, scenario: Scenario, **kwargs):
+        super(Parabellum, self).__init__(**kwargs)
+        self.obstacle_coords = scenario.obstacle_coords
+        self.obstacle_deltas = scenario.obstacle_deltas
+        self.unit_type_attack_blasts = jnp.zeros((19,), dtype=jnp.float32)
         self.max_steps = 200
-        # overwrite supers _world_step method
+        self._push_units_away = lambda x: x  # overwrite push units
 
-    
-    def _push_units_away(self, state: State, firmness: float = 1.0): # we do it inside the _world_step to allow more obstacles constraints
-        return state
-
-    def _our_push_units_away(self, pos, unit_types, firmness: float = 1.0): # copy of SMAX._push_units_away but used without state and called inside _world_step to allow more obstacles constraints
+    def _our_push_units_away(
+        self, pos, unit_types, firmness: float = 1.0
+    ):  # copy of SMAX._push_units_away but used without state and called inside _world_step to allow more obstacles constraints
         delta_matrix = pos[:, None] - pos[None, :]
         dist_matrix = (
             jnp.linalg.norm(delta_matrix, axis=-1)
@@ -74,7 +70,7 @@ class Parabellum(SMAX):
             + firmness * jnp.sum(delta_matrix * overlap_term[:, :, None], axis=1) / 2
         )
         return unit_positions
-        
+
     @partial(jax.jit, static_argnums=(0,))  # replace the _world_step method
     def _world_step(  # modified version of JaxMARL's SMAX _world_step
         self,
@@ -82,7 +78,6 @@ class Parabellum(SMAX):
         state: State,
         actions: Tuple[chex.Array, chex.Array],
     ) -> Tuple[Dict[str, chex.Array], State, Dict[str, float], Dict[str, bool], Dict]:
-        
         @partial(jax.vmap, in_axes=(None, None, 0, 0))
         def inter_fn(pos, new_pos, obs, obs_end):
             d1 = jnp.cross(obs - pos, new_pos - pos)
@@ -227,22 +222,36 @@ class Parabellum(SMAX):
         # units push each other
         new_pos = self._our_push_units_away(pos, state.unit_types)
 
-        # avoid going into obstacles after being pushed 
-        
-        bondaries_coords = jnp.array([[0, 0], [0, 0], [self.map_width, 0], [0, self.map_height]])
-        bondaries_deltas = jnp.array([[self.map_width, 0], [0, self.map_height],  [0, self.map_height], [self.map_width, 0]])
-        obstacle_coords = jnp.concatenate([self.obstacle_coords, bondaries_coords]) # add the map boundaries to the obstacles to avoid
-        obstacle_deltas = jnp.concatenate([self.obstacle_deltas, bondaries_deltas]) # add the map boundaries to the obstacles to avoid
+        # avoid going into obstacles after being pushed
+
+        bondaries_coords = jnp.array(
+            [[0, 0], [0, 0], [self.map_width, 0], [0, self.map_height]]
+        )
+        bondaries_deltas = jnp.array(
+            [
+                [self.map_width, 0],
+                [0, self.map_height],
+                [0, self.map_height],
+                [self.map_width, 0],
+            ]
+        )
+        obstacle_coords = jnp.concatenate(
+            [self.obstacle_coords, bondaries_coords]
+        )  # add the map boundaries to the obstacles to avoid
+        obstacle_deltas = jnp.concatenate(
+            [self.obstacle_deltas, bondaries_deltas]
+        )  # add the map boundaries to the obstacles to avoid
         obst_start = obstacle_coords
         obst_end = obst_start + obstacle_deltas
 
-        
         def check_obstacles(pos, new_pos, obst_start, obst_end):
             inters = jnp.any(inter_fn(pos, new_pos, obst_start, obst_end))
             return jnp.where(inters, pos, new_pos)
-        
-        pos = jax.vmap(check_obstacles, in_axes=(0,0,None,None))(pos, new_pos, obst_start, obst_end)
-        
+
+        pos = jax.vmap(check_obstacles, in_axes=(0, 0, None, None))(
+            pos, new_pos, obst_start, obst_end
+        )
+
         # Multiple enemies can attack the same unit.
         # We have `(health_diff, attacked_idx)` pairs.
         # `jax.lax.scatter_add` aggregates these exactly
@@ -284,19 +293,23 @@ class Parabellum(SMAX):
         )
         return state
 
+
 if __name__ == "__main__":
-    env = Parabellum(map_width=256, map_height=256)
-    rng, key = random.split(random.PRNGKey(0))
-    obs, state = env.reset(key)
+    n_envs = 4
+    kwargs = dict(map_width=64, map_height=64)
+    env = Parabellum(scenarios["default"], **kwargs)
+    rng, reset_rng = random.split(random.PRNGKey(0))
+    reset_key = random.split(reset_rng, n_envs)
+    obs, state = vmap(env.reset)(reset_key)
     state_seq = []
-    for step in range(100):
-        rng, key = random.split(rng)
-        key_act = random.split(key, len(env.agents))
-        actions = {
-            agent: jax.random.randint(key_act[i], (), 0, 5)
-            for i, agent in enumerate(env.agents)
+
+    for i in range(10):
+        rng, act_rng, step_rng = random.split(rng, 3)
+        act_key = random.split(act_rng, (len(env.agents), n_envs))
+        act = {
+            a: vmap(env.action_space(a).sample)(act_key[i])
+            for i, a in enumerate(env.agents)
         }
-        _, state, _, _, _ = env.step(key, state, actions)
-        state_seq.append((obs, state, actions))
-
-
+        step_key = random.split(step_rng, n_envs)
+        state_seq.append((step_key, state, act))
+        obs, state, reward, done, infos = vmap(env.step)(step_key, state, act)
