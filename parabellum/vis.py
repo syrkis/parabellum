@@ -102,16 +102,21 @@ class Visualizer(SMAXVisualizer):
             pygame.draw.circle(screen, self.fg, tuple(position.tolist()), 3)
 
     def animate(self, save_fname: str = "output/parabellum.mp4"):
-        n_envs = self.state_seq[0][1].unit_positions.shape[0]
-        if not self.have_expanded:
-            state_seqs = vmap(env.expand_state_seq)(self.state_seq)
-            self.have_expanded = True
-        for i in range(n_envs):
-            state_seq = jax.tree_map(lambda x: x[i], state_seqs)
-            action_seq = jax.tree_map(lambda x: x[i], self.action_seq)
-            self.animate_one(
-                state_seq, action_seq, save_fname.replace(".mp4", f"_{i}.mp4")
-            )
+        multi_dim = self.state_seq[0][1].unit_positions.ndim > 1
+        if multi_dim:
+            n_envs = self.state_seq[0][1].unit_positions.shape[0]
+            if not self.have_expanded:
+                state_seqs = vmap(env.expand_state_seq)(self.state_seq)
+                self.have_expanded = True
+            for i in range(n_envs):
+                state_seq = jax.tree_map(lambda x: x[i], state_seqs)
+                action_seq = jax.tree_map(lambda x: x[i], self.action_seq)
+                self.animate_one(
+                    state_seq, action_seq, save_fname.replace(".mp4", f"_{i}.mp4")
+                )
+        else:
+            state_seq = env.expand_state_seq(self.state_seq)
+            self.animate_one(state_seq, self.action_seq, save_fname)
 
     def animate_one(self, state_seq, action_seq, save_fname):
         frames = []  # frames for the video
