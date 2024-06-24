@@ -6,9 +6,11 @@ from tqdm import tqdm
 import jax.numpy as jnp
 import jax
 from jax import vmap
+from jax import tree_util
 from functools import partial
 import darkdetect
 import pygame
+import os
 from moviepy.editor import ImageSequenceClip
 from typing import Optional
 from jaxmarl.environments.multi_agent_env import MultiAgentEnv
@@ -22,7 +24,13 @@ from collections import defaultdict
 action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
 
 
-# # Visualizer
+def small_multiples():
+    # make video of small multiples based on all videos in output
+    video_files = [f"output/parabellum_{i}.mp4" for i in range(4)]
+    # load mp4 videos and make a grid
+    clips = [ImageSequenceClip.load(filename) for filename in video_files]
+    print(len(clips))
+
 
 class Visualizer(SMAXVisualizer):
     def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None):
@@ -34,7 +42,53 @@ class Visualizer(SMAXVisualizer):
         self.s = 1000
         self.scale = self.s / self.env.map_width
         self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
-        self.bullet_seq = bullet_fn(self.env, self.state_seq)
+        # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
+
+    def animate(self, save_fname: str = "output/parabellum.mp4"):
+        multi_dim = self.state_seq[0][1].unit_positions.ndim > 1
+        if multi_dim:
+            n_envs = self.state_seq[0][1].unit_positions.shape[0]
+            if not self.have_expanded:
+                state_seqs = vmap(env.expand_state_seq)(self.state_seq)
+                self.have_expanded = True
+            for i in range(n_envs):
+                state_seq = jax.tree_map(lambda x: x[i], state_seqs)
+                action_seq = jax.tree_map(lambda x: x[i], self.action_seq)
+                self.animate_one(
+                    state_seq, action_seq, save_fname.replace(".mp4", f"_{i}.mp4")
+                )
+        else:
+            state_seq = env.expand_state_seq(self.state_seq)
+            self.animate_one(state_seq, self.action_seq, save_fname)
+
+    def animate_one(self, state_seq, action_seq, save_fname):
+        frames = []  # frames for the video
+        pygame.init()  # initialize pygame
+        for idx, (_, state, _) in tqdm(enumerate(state_seq), total=len(self.state_seq)):
+            action = action_seq[idx // self.env.world_steps_per_env_step]
+            screen = pygame.Surface(
+                (self.s, self.s), pygame.HWSURFACE | pygame.DOUBLEBUF
+            )
+            screen.fill(self.bg)  # fill the screen with the background color
+
+            self.render_agents(screen, state)  # render the agents
+            self.render_action(screen, action)
+            self.render_obstacles(screen)  # render the obstacles
+
+            # bullets
+            """ if idx < len(self.bullet_seq) * 8:
+                bullets = self.bullet_seq[idx // 8]
+                self.render_bullets(screen, bullets, idx % 8) """
+
+            # rotate the screen and append to frames
+            frames.append(pygame.surfarray.pixels3d(screen).swapaxes(0, 1))
+        # save the images
+        clip = ImageSequenceClip(frames, fps=48)
+        clip.write_videofile(save_fname, fps=48)
+        # clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
+        pygame.quit()
+
+        return clip
 
     def render_agents(self, screen, state):
         time_tuple = zip(
@@ -46,7 +100,6 @@ class Visualizer(SMAXVisualizer):
         for idx, (pos, team, kind, hp) in enumerate(time_tuple):
             face_col = self.fg if int(team.item()) == 0 else self.bg
             pos = tuple((pos * self.scale).tolist())
-
             # draw the agent
             if hp > 0:
                 hp_frac = hp / self.env.unit_type_health[kind]
@@ -103,39 +156,6 @@ class Visualizer(SMAXVisualizer):
             position = source + (target - source) * jdx / 8
             position *= self.scale
             pygame.draw.circle(screen, self.fg, tuple(position.tolist()), 3)
-
-    def animate(self, save_fname: str = "parabellum.mp4"):
-        if not self.have_expanded:
-            self.expand_state_seq()
-        frames = []  # frames for the video
-        pygame.init()  # initialize pygame
-        for idx, (_, state, _) in tqdm(
-            enumerate(self.state_seq), total=len(self.state_seq)
-        ):
-            screen = pygame.Surface(
-                (self.s, self.s), pygame.HWSURFACE | pygame.DOUBLEBUF
-            )
-            screen.fill(self.bg)  # fill the screen with the background color
-
-            self.render_agents(screen, state)  # render the agents
-            self.render_action(screen, self.action_seq[idx // 8])
-            self.render_obstacles(screen)  # render the obstacles
-
-            # bullets
-            if idx < len(self.bullet_seq) * 8:
-                bullets = self.bullet_seq[idx // 8]
-                self.render_bullets(screen, bullets, idx % 8)
-
-            # rotate the screen and append to frames
-            frames.append(pygame.surfarray.pixels3d(screen).swapaxes(0, 1))
-
-        # save the images
-        clip = ImageSequenceClip(frames, fps=48)
-        clip.write_videofile(save_fname, fps=48)
-        # clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
-        pygame.quit()
-
-        return clip
 
 
 # # functions
@@ -207,31 +227,29 @@ def bullet_fn(env, states):
 # # test the visualizer
 
 if __name__ == "__main__":
-    from parabellum import Parabellum, Scenario
     from jax import random, numpy as jnp
-    
-    s = Scenario(jnp.array([[16, 0]]),
-                jnp.array([[0, 32]]) * 8,
-                jnp.zeros((11,), dtype=jnp.uint8),
-                5,
-                 6)
-    n_envs = 6
-    env = Parabellum(map_width=32, map_height=32, walls_cause_death=False, scenario=s)
-    rng, reset_key = random.split(random.PRNGKey(0))
-    reset_key = random.split(reset_key, n_envs)
+    from parabellum import Parabellum, scenarios
+
+    # small_multiples()  # testing small multiples (not working yet)
+    # exit()
+
+    n_envs = 2
+    kwargs = dict(map_width=64, map_height=64)
+    env = Parabellum(scenarios["default"], **kwargs)
+    rng, reset_rng = random.split(random.PRNGKey(0))
+    reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)
     state_seq = []
-    for step in range(10):
-        rng, key = random.split(rng)
-        key_act = random.split(key, len(env.agents))
-        actions = {
-            agent: jnp.array([1]*n_envs)
-            for i, agent in enumerate(env.agents)
-        }
-        state_seq.append((key, state, actions))
-        rng, key_step = random.split(rng)
-        env_step = random.split(key_step, n_envs)
 
-        obs, state, reward, done, infos = vmap(env.step)(env_step, state, actions )
+    for i in range(10):
+        rng, act_rng, step_rng = random.split(rng, 3)
+        act_key = random.split(act_rng, (len(env.agents), n_envs))
+        act = {
+            a: vmap(env.action_space(a).sample)(act_key[i])
+            for i, a in enumerate(env.agents)
+        }
+        step_key = random.split(step_rng, n_envs)
+        state_seq.append((step_key, state, act))
+        obs, state, reward, done, infos = vmap(env.step)(step_key, state, act)
 
 
