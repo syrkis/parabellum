@@ -1,4 +1,6 @@
-"""Visualizer for the Parabellum environment"""
+"""
+Visualizer for the Parabellum environment
+"""
 
 from tqdm import tqdm
 import jax.numpy as jnp
@@ -124,6 +126,9 @@ class Visualizer(SMAXVisualizer):
             # work out which agents are being shot
 
     def render_action(self, screen, action):
+        if self.env.action_type != "discrete":
+            return
+
         def coord_fn(idx, n, team):
             return (
                 self.s / 20 if team == 0 else self.s - self.s / 20,
@@ -238,7 +243,7 @@ if __name__ == "__main__":
     # exit()
 
     n_envs = 2
-    env = Parabellum(scenarios["default"])
+    env = Parabellum(scenarios["default"], action_type="continuous")
     rng, reset_rng = random.split(random.PRNGKey(0))
     reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)
@@ -248,7 +253,7 @@ if __name__ == "__main__":
         rng, act_rng, step_rng = random.split(rng, 3)
         act_key = random.split(act_rng, (len(env.agents), n_envs))
         act = {
-            a: jnp.ones_like(vmap(env.action_space(a).sample)(act_key[i]))
+            a: vmap(env.action_space(a).sample)(act_key[i])
             for i, a in enumerate(env.agents)
         }
         step_key = random.split(step_rng, n_envs)
