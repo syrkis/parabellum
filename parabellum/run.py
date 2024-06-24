@@ -123,3 +123,5 @@ if __name__ == "__main__":
         game = game if game.control.paused else render(game)
 
     pygame.quit()
+
+

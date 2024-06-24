@@ -80,7 +80,6 @@ class Visualizer(SMAXVisualizer):
 
             # rotate the screen and append to frames
             frames.append(pygame.surfarray.pixels3d(screen).swapaxes(0, 1))
-
         # save the images
         clip = ImageSequenceClip(frames, fps=48)
         clip.write_videofile(save_fname, fps=48)
@@ -99,7 +98,6 @@ class Visualizer(SMAXVisualizer):
         for idx, (pos, team, kind, hp) in enumerate(time_tuple):
             face_col = self.fg if int(team.item()) == 0 else self.bg
             pos = tuple((pos * self.scale).tolist())
-
             # draw the agent
             if hp > 0:
                 hp_frac = hp / self.env.unit_type_health[kind]
@@ -231,7 +229,7 @@ if __name__ == "__main__":
     # small_multiples()  # testing small multiples (not working yet)
     # exit()
 
-    n_envs = 100
+    n_envs = 2
     kwargs = dict(map_width=64, map_height=64)
     env = Parabellum(scenarios["default"], **kwargs)
     rng, reset_rng = random.split(random.PRNGKey(0))
@@ -239,7 +237,7 @@ if __name__ == "__main__":
     obs, state = vmap(env.reset)(reset_key)
     state_seq = []
 
-    for i in range(100):
+    for i in range(10):
         rng, act_rng, step_rng = random.split(rng, 3)
         act_key = random.split(act_rng, (len(env.agents), n_envs))
         act = {
@@ -252,3 +250,5 @@ if __name__ == "__main__":
 
     vis = Visualizer(env, state_seq)
     vis.animate()
+
+
