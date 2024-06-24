@@ -44,7 +44,7 @@ class Visualizer(SMAXVisualizer):
         # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
 
     def animate(self, save_fname: str = "output/parabellum.mp4"):
-        multi_dim = self.state_seq[0][1].unit_positions.ndim > 1
+        multi_dim = self.state_seq[0][1].unit_positions.ndim > 2
         if multi_dim:
             n_envs = self.state_seq[0][1].unit_positions.shape[0]
             if not self.have_expanded:
