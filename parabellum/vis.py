@@ -57,7 +57,7 @@ class Visualizer(SMAXVisualizer):
                     state_seq, action_seq, save_fname.replace(".mp4", f"_{i}.mp4")
                 )
         else:
-            state_seq = env.expand_state_seq(self.state_seq)
+            state_seq = self.env.expand_state_seq(self.state_seq)
             self.animate_one(state_seq, self.action_seq, save_fname)
 
     def animate_one(self, state_seq, action_seq, save_fname):
