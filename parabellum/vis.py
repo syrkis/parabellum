@@ -7,6 +7,7 @@ from jax import vmap
 from jax import tree_util
 from functools import partial
 import darkdetect
+import numpy as np
 import pygame
 import os
 from moviepy.editor import ImageSequenceClip
@@ -62,12 +63,19 @@ class Visualizer(SMAXVisualizer):
     def animate_one(self, state_seq, action_seq, save_fname):
         frames = []  # frames for the video
         pygame.init()  # initialize pygame
+        terrain = np.array(self.env.terrain_raster)
+        rgb_array = np.zeros((terrain.shape[0], terrain.shape[1], 3), dtype=np.uint8)
+        rgb_array[terrain == 1] = self.fg
+        mask_surface = pygame.surfarray.make_surface(rgb_array)
+        mask_surface = pygame.transform.scale(mask_surface, (self.s, self.s))
+
         for idx, (_, state, _) in tqdm(enumerate(state_seq), total=len(self.state_seq)):
             action = action_seq[idx // self.env.world_steps_per_env_step]
             screen = pygame.Surface(
                 (self.s, self.s), pygame.HWSURFACE | pygame.DOUBLEBUF
             )
             screen.fill(self.bg)  # fill the screen with the background color
+            screen.blit(mask_surface, (0, 0))
 
             self.render_agents(screen, state)  # render the agents
             self.render_action(screen, action)
@@ -230,18 +238,17 @@ if __name__ == "__main__":
     # exit()
 
     n_envs = 2
-    kwargs = dict(map_width=64, map_height=64)
-    env = Parabellum(scenarios["default"], **kwargs)
+    env = Parabellum(scenarios["default"])
     rng, reset_rng = random.split(random.PRNGKey(0))
     reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)
     state_seq = []
 
-    for i in range(10):
+    for i in range(100):
         rng, act_rng, step_rng = random.split(rng, 3)
         act_key = random.split(act_rng, (len(env.agents), n_envs))
         act = {
-            a: vmap(env.action_space(a).sample)(act_key[i])
+            a: jnp.ones_like(vmap(env.action_space(a).sample)(act_key[i]))
             for i, a in enumerate(env.agents)
         }
         step_key = random.split(step_rng, n_envs)
@@ -250,5 +257,3 @@ if __name__ == "__main__":
 
     vis = Visualizer(env, state_seq)
     vis.animate()
-
-

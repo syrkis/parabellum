@@ -17,6 +17,8 @@ from functools import partial
 class Scenario:
     """Parabellum scenario"""
 
+    terrain_raster: chex.Array
+
     obstacle_coords: chex.Array  # TODO: use map instead of obstacles
     obstacle_deltas: chex.Array
 
@@ -31,8 +33,9 @@ class Scenario:
 # default scenario
 scenarios = {
     "default": Scenario(
-        jnp.array([[16, 0], [16, 12]]),
-        jnp.array([[0, 10], [0, 20]]),
+        jnp.eye(128, dtype=jnp.uint8),
+        jnp.array([[80, 0], [16, 12]]),
+        jnp.array([[0, 80], [0, 20]]),
         jnp.zeros((19,), dtype=jnp.uint8),
         9,
         10,
@@ -42,7 +45,10 @@ scenarios = {
 
 class Parabellum(SMAX):
     def __init__(self, scenario: Scenario, **kwargs):
-        super(Parabellum, self).__init__(**kwargs)
+        map_height, map_width = scenario.terrain_raster.shape
+        args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
+        super(Parabellum, self).__init__(**args, **kwargs)
+        self.terrain_raster = scenario.terrain_raster
         self.obstacle_coords = scenario.obstacle_coords
         self.obstacle_deltas = scenario.obstacle_deltas
         self.unit_type_attack_blasts = jnp.zeros((19,), dtype=jnp.float32)
@@ -53,12 +59,17 @@ class Parabellum(SMAX):
     def reset(self, key: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
         key, team_0_key, team_1_key = jax.random.split(key, num=3)
-        team_0_start = jnp.stack([jnp.array([self.map_width / 4, self.map_height / 2])] * self.num_allies)
+        team_0_start = jnp.stack(
+            [jnp.array([self.map_width / 4, self.map_height / 2])] * self.num_allies
+        )
         team_0_start_noise = jax.random.uniform(
             team_0_key, shape=(self.num_allies, 2), minval=-2, maxval=2
         )
         team_0_start = team_0_start + team_0_start_noise
-        team_1_start = jnp.stack([jnp.array([self.map_width / 4 * 3, self.map_height / 2])] * self.num_enemies)
+        team_1_start = jnp.stack(
+            [jnp.array([self.map_width / 4 * 3, self.map_height / 2])]
+            * self.num_enemies
+        )
         team_1_start_noise = jax.random.uniform(
             team_1_key, shape=(self.num_enemies, 2), minval=-2, maxval=2
         )
@@ -101,7 +112,7 @@ class Parabellum(SMAX):
         world_state = self.get_world_state(state)
         obs["world_state"] = jax.lax.stop_gradient(world_state)
         return obs, state
-    
+
     def _our_push_units_away(
         self, pos, unit_types, firmness: float = 1.0
     ):  # copy of SMAX._push_units_away but used without state and called inside _world_step to allow more obstacles constraints
@@ -130,12 +141,23 @@ class Parabellum(SMAX):
         actions: Tuple[chex.Array, chex.Array],
     ) -> Tuple[Dict[str, chex.Array], State, Dict[str, float], Dict[str, bool], Dict]:
         @partial(jax.vmap, in_axes=(None, None, 0, 0))
-        def inter_fn(pos, new_pos, obs, obs_end):
+        def intersect_fn(pos, new_pos, obs, obs_end):
             d1 = jnp.cross(obs - pos, new_pos - pos)
             d2 = jnp.cross(obs_end - pos, new_pos - pos)
             d3 = jnp.cross(pos - obs, obs_end - obs)
             d4 = jnp.cross(new_pos - obs, obs_end - obs)
             return (d1 * d2 <= 0) & (d3 * d4 <= 0)
+
+        def raster_crossing(pos, new_pos):
+            pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
+            raster = self.terrain_raster
+            axis = jnp.argmax(jnp.abs(new_pos - pos), axis=-1)
+            minimum = jnp.minimum(pos[axis], new_pos[axis]).squeeze()
+            maximum = jnp.maximum(pos[axis], new_pos[axis]).squeeze()
+            segment = jnp.where(axis == 0, raster[pos[1]], raster.T[pos[0]])
+            segment = jnp.where(jnp.arange(segment.shape[0]) >= minimum, segment, 0)
+            segment = jnp.where(jnp.arange(segment.shape[0]) <= maximum, segment, 0)
+            return jnp.any(segment)
 
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
@@ -160,8 +182,10 @@ class Parabellum(SMAX):
             ############################################ avoid going into obstacles
             obs = self.obstacle_coords
             obs_end = obs + self.obstacle_deltas
-            inters = jnp.any(inter_fn(pos, new_pos, obs, obs_end))
-            new_pos = jnp.where(inters, pos, new_pos)
+            inters = jnp.any(intersect_fn(pos, new_pos, obs, obs_end))
+            rastersects = raster_crossing(pos, new_pos)
+            flag = jnp.logical_or(inters, rastersects)
+            new_pos = jnp.where(flag, pos, new_pos)
 
             #######################################################################
             #######################################################################
@@ -296,8 +320,10 @@ class Parabellum(SMAX):
         obst_end = obst_start + obstacle_deltas
 
         def check_obstacles(pos, new_pos, obst_start, obst_end):
-            inters = jnp.any(inter_fn(pos, new_pos, obst_start, obst_end))
-            return jnp.where(inters, pos, new_pos)
+            intersects = jnp.any(intersect_fn(pos, new_pos, obst_start, obst_end))
+            rastersect = raster_crossing(pos, new_pos)
+            flag = jnp.logical_or(intersects, rastersect)
+            return jnp.where(flag, pos, new_pos)
 
         pos = jax.vmap(check_obstacles, in_axes=(0, 0, None, None))(
             pos, new_pos, obst_start, obst_end
