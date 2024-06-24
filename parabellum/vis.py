@@ -48,7 +48,7 @@ class Visualizer(SMAXVisualizer):
         if multi_dim:
             n_envs = self.state_seq[0][1].unit_positions.shape[0]
             if not self.have_expanded:
-                state_seqs = vmap(env.expand_state_seq)(self.state_seq)
+                state_seqs = vmap(self.env.expand_state_seq)(self.state_seq)
                 self.have_expanded = True
             for i in range(n_envs):
                 state_seq = jax.tree_map(lambda x: x[i], state_seqs)
