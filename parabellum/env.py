@@ -42,7 +42,7 @@ scenarios = {
 
 class Parabellum(SMAX):
     def __init__(self, scenario: Scenario, **kwargs):
-        super(Parabellum, self).__init__(**kwargs)
+        super(Parabellum, self).__init__(scenario=scenario,**kwargs)
         self.obstacle_coords = scenario.obstacle_coords
         self.obstacle_deltas = scenario.obstacle_deltas
         self.unit_type_attack_blasts = jnp.zeros((19,), dtype=jnp.float32)
