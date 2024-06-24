@@ -2,3 +2,4 @@
 *.mp4
 dist/
 docs/
+.ipynb_checkpoints
