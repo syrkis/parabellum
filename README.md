@@ -65,11 +65,13 @@ vis.animate()
 
 ## TODO
 
-- [ ] Parallel pygame vis
+- [x] Parallel pygame vis
+    - [ ] Parallel bullet renderings
+    - [ ] Combine parallell plots into one (maybe out of parabellum scope)
 - [ ] Color for health?
 - [ ] Add the ability to see ongoing game.
 - [ ] Bug test friendly fire.
-- [ ] Start sim from arbitrary state.
+- [x] Start sim from arbitrary state.
 - [ ] Save when the episode ends in some state/obs variable
 - [ ] Look for the source of the bug when using more Allies than Enemies
 - [ ] Y inversed axis for parabellum visualization

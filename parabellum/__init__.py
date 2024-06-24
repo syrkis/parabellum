@@ -1,4 +1,4 @@
-from .env import Parabellum, Scenario
+from .env import Parabellum, Scenario, scenarios
 from .vis import Visualizer
 
-__all__ = ["Parabellum", "Visualizer", "Scenario"]
+__all__ = ["Parabellum", "Visualizer", "Scenario", "scenarios"]
