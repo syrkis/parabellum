@@ -39,7 +39,7 @@ class Visualizer(SMAXVisualizer):
         # remove fig and ax from super
         self.fig, self.ax = None, None
         self.bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
-        self.fg = (235, 235, 235) if darkdetect.isDark() else (20, 20, 20)
+        self.fg = (255, 255, 255) if darkdetect.isDark() else (0, 0, 0)
         self.s = 1000
         self.scale = self.s / self.env.map_width
         self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
@@ -67,6 +67,8 @@ class Visualizer(SMAXVisualizer):
         pygame.init()  # initialize pygame
         terrain = np.array(self.env.terrain_raster)
         rgb_array = np.zeros((terrain.shape[0], terrain.shape[1], 3), dtype=np.uint8)
+        if darkdetect.isLight():
+            rgb_array += 255
         rgb_array[terrain == 1] = self.fg
         mask_surface = pygame.surfarray.make_surface(rgb_array)
         mask_surface = pygame.transform.scale(mask_surface, (self.s, self.s))
@@ -93,7 +95,7 @@ class Visualizer(SMAXVisualizer):
         # save the images
         clip = ImageSequenceClip(frames, fps=48)
         clip.write_videofile(save_fname, fps=48)
-        # clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
+        clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
         pygame.quit()
 
         return clip
@@ -243,7 +245,7 @@ if __name__ == "__main__":
     # exit()
 
     n_envs = 2
-    env = Parabellum(scenarios["default"], action_type="continuous")
+    env = Parabellum(scenarios["default"], action_type="discrete")
     rng, reset_rng = random.split(random.PRNGKey(0))
     reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)

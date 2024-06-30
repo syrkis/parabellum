@@ -33,7 +33,7 @@ class Scenario:
 # default scenario
 scenarios = {
     "default": Scenario(
-        jnp.eye(128, dtype=jnp.uint8),
+        jnp.eye(64, dtype=jnp.uint8),
         jnp.array([[80, 0], [16, 12]]),
         jnp.array([[0, 80], [0, 20]]),
         jnp.zeros((19,), dtype=jnp.uint8),
