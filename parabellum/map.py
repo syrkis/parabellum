@@ -4,13 +4,43 @@
 
 # imports
 import jax.numpy as jnp
-import jax
+from geopy.geocoders import Nominatim
+import geopandas as gpd
+import osmnx as ox
+import rasterio
+from jax import random
+from rasterio import features
+import rasterio.transform
+
+# constants
+geolocator = Nominatim(user_agent="parabellum")
+tags = {"building": True}
 
 
 # functions
-def map_fn(width, height, obst_coord, obst_delta):
-    """Create a map from the given width, height, and obstacle coordinates and deltas."""
-    m = jnp.zeros((width, height))
-    for (x, y), (dx, dy) in zip(obst_coord, obst_delta):
-        m = m.at[x : x + dx, y : y + dy].set(1)
-    return m
+def terrain_fn(place: str, size: int = 1000):
+    """Returns a rasterized map of a given location."""
+
+    # location info
+    location = geolocator.geocode(place)
+    coords = (location.latitude, location.longitude)
+
+    # shape info
+    geometry = ox.features_from_point(coords, tags=tags, dist=size // 2)
+    gdf = gpd.GeoDataFrame(geometry).set_crs("EPSG:4326")
+
+    # raster info
+    t = rasterio.transform.from_bounds(*gdf.total_bounds, size, size)
+    raster = features.rasterize(gdf.geometry, out_shape=(size, size), transform=t)
+
+    return jnp.array(raster).astype(jnp.uint8)
+
+
+if __name__ == "__main__":
+    import seaborn as sns
+
+    place = "Vesterbro, Copenhagen, Denmark"
+    terrain = terrain_fn(place)
+    rng, key = random.split(random.PRNGKey(0))
+    agents = spawn_fn(terrain, 12, 100, key)
+    print(agents)

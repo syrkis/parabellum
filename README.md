@@ -1,8 +1,15 @@
 # parabellum
 
-Parabellum is an ultra-scalable, high-performance warfare simulation engine.
+Parabellum is an ultra-scalable, high-performance warfare simulation engine, developped with funding from Armasuisse.
 It is based on JaxMARL's SMAX environment, but has been heavily modified to
-support a wide range of new features and improvements.
+support a range of new features, including:
+- Obstacles
+- Rasterized maps
+- Blast radii
+- Friendly fire
+- Pygame visualization
+- Pygame interactive
+
 
 ## Installation
 
@@ -57,11 +64,6 @@ for _ in range(1000):
 vis = pb.Visualizer(env, state_sequence)  # <- Visualizer is a nice to have class
 vis.animate()
 ```
-
-
-## Features
-
-- Obstacles — can be inserted in
 
 ## TODO
 

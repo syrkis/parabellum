@@ -17,11 +17,8 @@ from functools import partial
 class Scenario:
     """Parabellum scenario"""
 
+    place: str
     terrain_raster: chex.Array
-
-    obstacle_coords: chex.Array  # TODO: use map instead of obstacles
-    obstacle_deltas: chex.Array
-
     unit_types: chex.Array
     num_allies: int
     num_enemies: int
@@ -33,9 +30,8 @@ class Scenario:
 # default scenario
 scenarios = {
     "default": Scenario(
+        "Identity Town",
         jnp.eye(64, dtype=jnp.uint8),
-        jnp.array([[80, 0], [16, 12]]),
-        jnp.array([[0, 80], [0, 20]]),
         jnp.zeros((19,), dtype=jnp.uint8),
         9,
         10,
@@ -43,57 +39,63 @@ scenarios = {
 }
 
 
-class Parabellum(SMAX):
+def make_scenario(place, terrain_raster, num_allies=9, num_enemies=10):
+    """Create a scenario"""
+    num_agents = num_allies + num_enemies
+    unit_types = jnp.zeros((num_agents,)).astype(jnp.uint8)
+    return Scenario(place, terrain_raster, unit_types, num_allies, num_enemies)
+
+
+def spawn_fn(pool: jnp.ndarray, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
+    """Spawns n agents on a map."""
+    rng, key_start, key_noise = random.split(rng, 3)
+    noise = random.uniform(key_noise, (n, 2)) * 0.5
+
+    # select n random (x, y)-coords where sector == True
+    idxs = random.choice(key_start, pool[0].shape[0], (n,), replace=False)
+    coords = jnp.array([pool[0][idxs], pool[1][idxs]]).T
+
+    return coords + noise + offset
+
+
+def sector_fn(terrain: jnp.ndarray, sector_id: int):
+    """return sector slice of terrain"""
+    width, height = terrain.shape
+    coordx, coordy = sector_id // 5 * width // 5, sector_id % 5 * height // 5
+    sector = terrain[coordx : coordx + width // 5, coordy : coordy + height // 5] == 0
+    offset = jnp.array([coordx, coordy])
+    # sector is jnp.nonzero
+    return jnp.nonzero(sector), offset
+
+
+class Environment(SMAX):
     def __init__(self, scenario: Scenario, **kwargs):
         map_height, map_width = scenario.terrain_raster.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
-        super(Parabellum, self).__init__(**args, **kwargs)
+        super(Environment, self).__init__(**args, walls_cause_death=False, **kwargs)
         self.terrain_raster = scenario.terrain_raster
-        self.obstacle_coords = scenario.obstacle_coords
-        self.obstacle_deltas = scenario.obstacle_deltas
-        self.unit_type_attack_blasts = jnp.zeros((19,), dtype=jnp.float32)
+        # self.unit_type_names = ["tinker", "tailor", "soldier", "spy"]
+        # self.unit_type_health = jnp.array([100, 100, 100, 100], dtype=jnp.float32)
+        # self.unit_type_damage = jnp.array([10, 10, 10, 10], dtype=jnp.float32)
+        self.scenario = scenario
+        self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda x: x  # overwrite push units
+        self.top_sector = sector_fn(self.terrain_raster, 0)
+        self.low_sector = sector_fn(self.terrain_raster, 24)
 
     @partial(jax.jit, static_argnums=(0,))
-    def reset(self, key: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
+    def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
-        key, team_0_key, team_1_key = jax.random.split(key, num=3)
-        team_0_start = jnp.stack(
-            [jnp.array([self.map_width / 4, self.map_height / 2])] * self.num_allies
-        )
-        team_0_start_noise = jax.random.uniform(
-            team_0_key, shape=(self.num_allies, 2), minval=-2, maxval=2
-        )
-        team_0_start = team_0_start + team_0_start_noise
-        team_1_start = jnp.stack(
-            [jnp.array([self.map_width / 4 * 3, self.map_height / 2])]
-            * self.num_enemies
-        )
-        team_1_start_noise = jax.random.uniform(
-            team_1_key, shape=(self.num_enemies, 2), minval=-2, maxval=2
-        )
-        team_1_start = team_1_start + team_1_start_noise
+        ally_key, enemy_key = jax.random.split(rng)
+        team_0_start = spawn_fn(*self.top_sector, self.num_allies, ally_key)
+        team_1_start = spawn_fn(*self.low_sector, self.num_enemies, enemy_key)
         unit_positions = jnp.concatenate([team_0_start, team_1_start])
-        key, pos_key = jax.random.split(key)
-        generated_unit_positions = self.position_generator.generate(pos_key)
-        unit_positions = jax.lax.select(
-            self.smacv2_position_generation, generated_unit_positions, unit_positions
-        )
         unit_teams = jnp.zeros((self.num_agents,))
         unit_teams = unit_teams.at[self.num_allies :].set(1)
         unit_weapon_cooldowns = jnp.zeros((self.num_agents,))
         # default behaviour spawn all marines
-        unit_types = (
-            jnp.zeros((self.num_agents,), dtype=jnp.uint8)
-            if self.scenario is None
-            else self.scenario
-        )
-        key, unit_type_key = jax.random.split(key)
-        generated_unit_types = self.unit_type_generator.generate(unit_type_key)
-        unit_types = jax.lax.select(
-            self.smacv2_unit_type_generation, generated_unit_types, unit_types
-        )
+        unit_types = self.scenario.unit_types
         unit_health = self.unit_type_health[unit_types]
         state = State(
             unit_positions=unit_positions,
@@ -180,12 +182,12 @@ class Parabellum(SMAX):
 
             #######################################################################
             ############################################ avoid going into obstacles
-            obs = self.obstacle_coords
+            """ obs = self.obstacle_coords
             obs_end = obs + self.obstacle_deltas
-            inters = jnp.any(intersect_fn(pos, new_pos, obs, obs_end))
-            rastersects = raster_crossing(pos, new_pos)
-            flag = jnp.logical_or(inters, rastersects)
-            new_pos = jnp.where(flag, pos, new_pos)
+            inters = jnp.any(intersect_fn(pos, new_pos, obs, obs_end)) """
+            clash = raster_crossing(pos, new_pos)
+            # flag = jnp.logical_or(inters, rastersects)
+            new_pos = jnp.where(clash, pos, new_pos)
 
             #######################################################################
             #######################################################################
@@ -310,14 +312,14 @@ class Parabellum(SMAX):
                 [self.map_width, 0],
             ]
         )
-        obstacle_coords = jnp.concatenate(
+        """ obstacle_coords = jnp.concatenate(
             [self.obstacle_coords, bondaries_coords]
         )  # add the map boundaries to the obstacles to avoid
         obstacle_deltas = jnp.concatenate(
             [self.obstacle_deltas, bondaries_deltas]
         )  # add the map boundaries to the obstacles to avoid
         obst_start = obstacle_coords
-        obst_end = obst_start + obstacle_deltas
+        obst_end = obst_start + obstacle_deltas """
 
         def check_obstacles(pos, new_pos, obst_start, obst_end):
             intersects = jnp.any(intersect_fn(pos, new_pos, obst_start, obst_end))
@@ -325,9 +327,9 @@ class Parabellum(SMAX):
             flag = jnp.logical_or(intersects, rastersect)
             return jnp.where(flag, pos, new_pos)
 
-        pos = jax.vmap(check_obstacles, in_axes=(0, 0, None, None))(
+        """ pos = jax.vmap(check_obstacles, in_axes=(0, 0, None, None))(
             pos, new_pos, obst_start, obst_end
-        )
+        ) """
 
         # Multiple enemies can attack the same unit.
         # We have `(health_diff, attacked_idx)` pairs.
@@ -373,12 +375,15 @@ class Parabellum(SMAX):
 
 if __name__ == "__main__":
     n_envs = 4
-    kwargs = dict(map_width=64, map_height=64)
-    env = Parabellum(scenarios["default"], **kwargs)
+
+    env = Environment(scenarios["default"])
     rng, reset_rng = random.split(random.PRNGKey(0))
     reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)
     state_seq = []
+
+    print(state.unit_positions)
+    exit()
 
     for i in range(10):
         rng, act_rng, step_rng = random.split(rng, 3)

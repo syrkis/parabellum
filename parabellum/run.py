@@ -39,7 +39,7 @@ class Game:
     obs: Dict
     state_seq: StateSeq
     control: Control
-    env: pb.Parabellum
+    env: pb.Environment
     rng: random.PRNGKey
 
 
@@ -123,5 +123,3 @@ if __name__ == "__main__":
         game = game if game.control.paused else render(game)
 
     pygame.quit()
-
-

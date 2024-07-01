@@ -4,4 +4,4 @@ dist/
 docs/
 **/.DS_Store
 **/.ipynb_checkpoints
-
+cache/

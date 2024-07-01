@@ -11,6 +11,7 @@ from functools import partial
 import darkdetect
 import numpy as np
 import pygame
+import matplotlib.pyplot as plt
 import os
 from moviepy.editor import ImageSequenceClip
 from typing import Optional
@@ -35,13 +36,15 @@ def small_multiples():
 
 class Visualizer(SMAXVisualizer):
     def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None):
-        super().__init__(env, state_seq, reward_seq)
-        # remove fig and ax from super
         self.fig, self.ax = None, None
+        super().__init__(env, state_seq, reward_seq)
+        # clear the figure made by SMAXVisualizer
+        plt.close()
         self.bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
         self.fg = (255, 255, 255) if darkdetect.isDark() else (0, 0, 0)
-        self.s = 1000
-        self.scale = self.s / self.env.map_width
+        self.pad = 75
+        self.s = env.map_width + self.pad + self.pad
+        self.scale = 1
         self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
         # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
 
@@ -71,7 +74,9 @@ class Visualizer(SMAXVisualizer):
             rgb_array += 255
         rgb_array[terrain == 1] = self.fg
         mask_surface = pygame.surfarray.make_surface(rgb_array)
-        mask_surface = pygame.transform.scale(mask_surface, (self.s, self.s))
+        mask_surface = pygame.transform.scale(
+            mask_surface, (self.env.map_width, self.env.map_width)
+        )
 
         for idx, (_, state, _) in tqdm(enumerate(state_seq), total=len(self.state_seq)):
             action = action_seq[idx // self.env.world_steps_per_env_step]
@@ -79,11 +84,42 @@ class Visualizer(SMAXVisualizer):
                 (self.s, self.s), pygame.HWSURFACE | pygame.DOUBLEBUF
             )
             screen.fill(self.bg)  # fill the screen with the background color
-            screen.blit(mask_surface, (0, 0))
+            screen.blit(
+                mask_surface,
+                (self.pad, self.pad, self.env.map_width, self.env.map_width),
+            )
+            # add env.scenario.place to the title (in top padding)
+            font = pygame.font.SysFont("Fira Code", 18)
+            width = self.env.map_width
+            title = f"{width}x{width}m in {self.env.scenario.place}"
+            text = font.render(title, True, self.fg)
+            # transpose text (rotate 90 degrees) and mirror and center
+            text = pygame.transform.rotate(text, 270)
+            text = pygame.transform.flip(text, True, False)
+            # center the text
+            screen.blit(
+                text,
+                (
+                    (self.pad - text.get_height()) // 2,
+                    (self.s - text.get_width()) // 2,
+                ),
+            )
+            # draw edge around terrain
+            pygame.draw.rect(
+                screen,
+                self.fg,
+                (
+                    self.pad - 2,
+                    self.pad - 2,
+                    self.env.map_width + 4,
+                    self.env.map_width + 4,
+                ),
+                2,
+            )
 
             self.render_agents(screen, state)  # render the agents
             self.render_action(screen, action)
-            self.render_obstacles(screen)  # render the obstacles
+            # self.render_obstacles(screen)  # render the obstacles
 
             # bullets
             """ if idx < len(self.bullet_seq) * 8:
@@ -91,14 +127,13 @@ class Visualizer(SMAXVisualizer):
                 self.render_bullets(screen, bullets, idx % 8) """
 
             # rotate the screen and append to frames
-            frames.append(pygame.surfarray.pixels3d(screen).swapaxes(0, 1))
+            pixels = pygame.surfarray.pixels3d(screen)
+            frames.append(pixels)
         # save the images
         clip = ImageSequenceClip(frames, fps=48)
         clip.write_videofile(save_fname, fps=48)
-        clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
+        # clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
         pygame.quit()
-
-        return clip
 
     def render_agents(self, screen, state):
         time_tuple = zip(
@@ -109,6 +144,7 @@ class Visualizer(SMAXVisualizer):
         )
         for idx, (pos, team, kind, hp) in enumerate(time_tuple):
             face_col = self.fg if int(team.item()) == 0 else self.bg
+            pos = pos + self.pad
             pos = tuple((pos * self.scale).tolist())
             # draw the agent
             if hp > 0:
@@ -133,15 +169,17 @@ class Visualizer(SMAXVisualizer):
 
         def coord_fn(idx, n, team):
             return (
-                self.s / 20 if team == 0 else self.s - self.s / 20,
                 # vertically centered so that n / 2 is above and below the center
                 self.s / 2 - (n / 2) * self.s / 20 + idx * self.s / 20,
+                self.pad / 4 if team == 0 else self.s - self.pad,
             )
 
         for idx in range(self.env.num_allies):
             symb = action_to_symbol.get(action[f"ally_{idx}"].astype(int).item(), "Ø")
             font = pygame.font.SysFont("Fira Code", jnp.sqrt(self.s).astype(int).item())
             text = font.render(symb, True, self.fg)
+            # transpose text
+            text = pygame.transform.rotate(text, 180)
             coord = coord_fn(idx, self.env.num_allies, 0)
             screen.blit(text, coord)
 

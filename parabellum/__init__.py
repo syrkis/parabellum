@@ -1,4 +1,12 @@
-from .env import Parabellum, Scenario, scenarios
+from .env import Environment, Scenario, scenarios, make_scenario
 from .vis import Visualizer
+from .map import terrain_fn
 
-__all__ = ["Parabellum", "Visualizer", "Scenario", "scenarios"]
+__all__ = [
+    "Environment",
+    "Scenario",
+    "scenarios",
+    "make_scenario",
+    "Visualizer",
+    "terrain_fn",
+]
