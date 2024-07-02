@@ -68,7 +68,7 @@ class Visualizer(SMAXVisualizer):
     def animate_one(self, state_seq, action_seq, save_fname):
         frames = []  # frames for the video
         pygame.init()  # initialize pygame
-        terrain = np.array(self.env.terrain_raster)
+        terrain = np.array(self.env.terrain_raster.T)
         rgb_array = np.zeros((terrain.shape[0], terrain.shape[1], 3), dtype=np.uint8)
         if darkdetect.isLight():
             rgb_array += 255
@@ -93,17 +93,8 @@ class Visualizer(SMAXVisualizer):
             width = self.env.map_width
             title = f"{width}x{width}m in {self.env.scenario.place}"
             text = font.render(title, True, self.fg)
-            # transpose text (rotate 90 degrees) and mirror and center
-            text = pygame.transform.rotate(text, 270)
-            text = pygame.transform.flip(text, True, False)
             # center the text
-            screen.blit(
-                text,
-                (
-                    (self.pad - text.get_height()) // 2,
-                    (self.s - text.get_width()) // 2,
-                ),
-            )
+            screen.blit(text, (self.s // 2 - text.get_width() // 2, 10))
             # draw edge around terrain
             pygame.draw.rect(
                 screen,
@@ -127,7 +118,7 @@ class Visualizer(SMAXVisualizer):
                 self.render_bullets(screen, bullets, idx % 8) """
 
             # rotate the screen and append to frames
-            pixels = pygame.surfarray.pixels3d(screen)
+            pixels = pygame.surfarray.pixels3d(screen).swapaxes(0, 1)
             frames.append(pixels)
         # save the images
         clip = ImageSequenceClip(frames, fps=48)
@@ -170,16 +161,14 @@ class Visualizer(SMAXVisualizer):
         def coord_fn(idx, n, team):
             return (
                 # vertically centered so that n / 2 is above and below the center
+                self.pad / 4 if team == 0 else self.s - self.pad / 4,
                 self.s / 2 - (n / 2) * self.s / 20 + idx * self.s / 20,
-                self.pad / 4 if team == 0 else self.s - self.pad,
             )
 
         for idx in range(self.env.num_allies):
             symb = action_to_symbol.get(action[f"ally_{idx}"].astype(int).item(), "Ø")
             font = pygame.font.SysFont("Fira Code", jnp.sqrt(self.s).astype(int).item())
             text = font.render(symb, True, self.fg)
-            # transpose text
-            text = pygame.transform.rotate(text, 180)
             coord = coord_fn(idx, self.env.num_allies, 0)
             screen.blit(text, coord)
 
