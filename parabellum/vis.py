@@ -34,6 +34,11 @@ def small_multiples():
     print(len(clips))
 
 
+def text_fn(text):
+    """rotate text upside down because of pygame issue"""
+    return pygame.transform.rotate(text, 180)
+
+
 class Visualizer(SMAXVisualizer):
     def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None):
         self.fig, self.ax = None, None
@@ -43,6 +48,7 @@ class Visualizer(SMAXVisualizer):
         self.bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
         self.fg = (255, 255, 255) if darkdetect.isDark() else (0, 0, 0)
         self.pad = 75
+        # TODO: make sure it's always a 1024x1024 image
         self.s = env.map_width + self.pad + self.pad
         self.scale = 1
         self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
@@ -92,7 +98,7 @@ class Visualizer(SMAXVisualizer):
             font = pygame.font.SysFont("Fira Code", 18)
             width = self.env.map_width
             title = f"{width}x{width}m in {self.env.scenario.place}"
-            text = font.render(title, True, self.fg)
+            text = text_fn(font.render(title, True, self.fg))
             # center the text
             screen.blit(text, (self.s // 2 - text.get_width() // 2, 10))
             # draw edge around terrain
@@ -119,6 +125,8 @@ class Visualizer(SMAXVisualizer):
 
             # rotate the screen and append to frames
             pixels = pygame.surfarray.pixels3d(screen).swapaxes(0, 1)
+            # rotate the screen 180 degrees (transpose and flip)
+            pixels = np.rot90(pixels, 2)  # pygame starts in bottom left
             frames.append(pixels)
         # save the images
         clip = ImageSequenceClip(frames, fps=48)
@@ -168,14 +176,14 @@ class Visualizer(SMAXVisualizer):
         for idx in range(self.env.num_allies):
             symb = action_to_symbol.get(action[f"ally_{idx}"].astype(int).item(), "Ø")
             font = pygame.font.SysFont("Fira Code", jnp.sqrt(self.s).astype(int).item())
-            text = font.render(symb, True, self.fg)
+            text = text_fn(font.render(symb, True, self.fg))
             coord = coord_fn(idx, self.env.num_allies, 0)
             screen.blit(text, coord)
 
         for idx in range(self.env.num_enemies):
             symb = action_to_symbol.get(action[f"enemy_{idx}"].astype(int).item(), "Ø")
             font = pygame.font.SysFont("Fira Code", jnp.sqrt(self.s).astype(int).item())
-            text = font.render(symb, True, self.fg)
+            text = text_fn(font.render(symb, True, self.fg))
             coord = coord_fn(idx, self.env.num_enemies, 1)
             screen.blit(text, coord)
 

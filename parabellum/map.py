@@ -33,6 +33,9 @@ def terrain_fn(place: str, size: int = 1000):
     t = rasterio.transform.from_bounds(*gdf.total_bounds, size, size)
     raster = features.rasterize(gdf.geometry, out_shape=(size, size), transform=t)
 
+    # rotate 180 degrees
+    raster = jnp.rot90(raster, 2)
+
     return jnp.array(raster).astype(jnp.uint8)
 
 
