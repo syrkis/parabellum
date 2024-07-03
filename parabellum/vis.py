@@ -49,8 +49,9 @@ class Visualizer(SMAXVisualizer):
         self.fg = (255, 255, 255) if darkdetect.isDark() else (0, 0, 0)
         self.pad = 75
         # TODO: make sure it's always a 1024x1024 image
-        self.s = env.map_width + self.pad + self.pad
-        self.scale = 1
+        self.width = 1000
+        self.s = self.width + self.pad + self.pad
+        self.scale = self.width / env.map_width
         self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
         # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
 
@@ -80,9 +81,7 @@ class Visualizer(SMAXVisualizer):
             rgb_array += 255
         rgb_array[terrain == 1] = self.fg
         mask_surface = pygame.surfarray.make_surface(rgb_array)
-        mask_surface = pygame.transform.scale(
-            mask_surface, (self.env.map_width, self.env.map_width)
-        )
+        mask_surface = pygame.transform.scale(mask_surface, (self.width, self.width))
 
         for idx, (_, state, _) in tqdm(enumerate(state_seq), total=len(self.state_seq)):
             action = action_seq[idx // self.env.world_steps_per_env_step]
@@ -92,7 +91,7 @@ class Visualizer(SMAXVisualizer):
             screen.fill(self.bg)  # fill the screen with the background color
             screen.blit(
                 mask_surface,
-                (self.pad, self.pad, self.env.map_width, self.env.map_width),
+                (self.pad, self.pad, self.width, self.width),
             )
             # add env.scenario.place to the title (in top padding)
             font = pygame.font.SysFont("Fira Code", 18)
@@ -108,8 +107,8 @@ class Visualizer(SMAXVisualizer):
                 (
                     self.pad - 2,
                     self.pad - 2,
-                    self.env.map_width + 4,
-                    self.env.map_width + 4,
+                    self.width + 4,
+                    self.width + 4,
                 ),
                 2,
             )
@@ -143,8 +142,7 @@ class Visualizer(SMAXVisualizer):
         )
         for idx, (pos, team, kind, hp) in enumerate(time_tuple):
             face_col = self.fg if int(team.item()) == 0 else self.bg
-            pos = pos + self.pad
-            pos = tuple((pos * self.scale).tolist())
+            pos = tuple(((pos * self.scale) + self.pad).tolist())
             # draw the agent
             if hp > 0:
                 hp_frac = hp / self.env.unit_type_health[kind]
