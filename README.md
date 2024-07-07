@@ -1,6 +1,6 @@
 # Parabellum
 
-Ultra-scalable warfare simulation engine developed with Armasuisse funding.
+Ultra-scalable JaxMARL based warfare simulation engine developed with Armasuisse funding.
 
 [![Documentation Status](https://readthedocs.org/projects/parabellum/badge/?version=latest)](https://parabellum.readthedocs.io/en/latest/?badge=latest)
 
@@ -51,7 +51,7 @@ Full documentation: [parabellum.readthedocs.io](https://parabellum.readthedocs.i
 ## Team
 
 - Noah Syrkis
-- Timothée François Nathan Anne
+- Timothée Anne
 - Supervisor: Sebastian Risi
 
 ## License
