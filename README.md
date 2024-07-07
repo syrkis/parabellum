@@ -2,9 +2,9 @@
 
 ## Ultra-Scalable Warfare Simulation Engine
 
-Parabellum is an advanced, high-performance warfare simulation engine developed with funding from Armasuisse. Built upon JaxMARL's SMAX environment, Parabellum has been extensively modified to support a wide range of features crucial for realistic military simulations.
+Parabellum is an advanced, high-performance warfare simulation engine developed with funding from Armasuisse. Built upon JaxMARL's SMAX environment, Parabellum has been extensively modified to support a wide range of features crucial for more realistic military simulations.
 
-Version: 1.0.0
+Version: 0.2.19
 
 ## Key Features
 
@@ -22,8 +22,6 @@ Parabellum is designed for researchers, military strategists, and policy analyst
 ## Prerequisites
 
 - Python 3.11 or higher
-- JAX (version 0.3.25 or higher)
-- PyGame (version 2.1.0 or higher)
 
 ## Installation
 
@@ -39,15 +37,15 @@ Here's a basic example demonstrating how to use Parabellum to simulate a scenari
 
 ```python
 import parabellum as pb
-from jax import random
+from jax import random, vmap
 
 # Define the scenario
-terrain = pb.terrain_fn(place="Thun, Switzerland", size=1000)
+terrain = pb.terrain_fn(place := "Thun, Switzerland", size=1000)
 scenario = pb.make_scenario(place, terrain, allies=10, enemies=10)
 env = pb.Parabellum(scenario)  # Parabellum is the central class
 
 # Initialize stochasticity
-rng, key = random.split(random.PRNGKey(seed=0))
+rng, key = random.split(random.PRNGKey(seed := 0))
 obs, state = env.reset(key)
 
 state_sequence = []
@@ -70,6 +68,15 @@ vis.animate()
 ```
 
 This script will generate an animation of the simulation, showcasing agent movements and interactions within the defined terrain.
+
+## Paralellization
+
+To run 1000 parallel simulations, use `vmap` to map the `reset` and `step` functions over the agents and enemies:
+
+```python
+obs_v, state_v = vmap(env.reset)(key)
+obs_v, state_v = vmap(env.step)(key, act, state_v)
+```
 
 ## Advanced Usage
 

@@ -1,7 +1,6 @@
 **/__pycache__
 *.mp4
 dist/
-docs/
 **/.DS_Store
 **/.ipynb_checkpoints
 cache/
