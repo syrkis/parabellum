@@ -30,32 +30,27 @@ import parabellum as pb
 from jax import random
 
 # define the scenario
-kwargs = dict(obstacle_coords=[(7, 7)], obstacle_deltas=[(10, 0)])
-scenario = pb.Scenario(**kwargs)  # <- Scenario is an important part of parabellum
-
-# create the environment
-kwargs = dict(map_width=256, map_height=256, num_agents=10, num_enemies=10)
-env = pb.Parabellum(**kwargs)  # <- Parabellum is the central class of parabellum
+place = "Thun, Swizerland"
+terrain = pb.terrain_fn(place, 1000)
+scenario = pb.make_scenario(place, terrain, 10, 10)
+env = pb.Parabellum(scenario)  # <- Parabellum is the central class of parabellum
 
 # initiate stochasticity
-rng = random.PRNGKey(0)
-rng, key = random.split(rng)
-
-# initialize the environment state
+rng, key = random.split(random.PRNGKey(seed := 0))
 obs, state = env.reset(key)
 state_sequence = []
 
-for _ in range(1000):
+for _ in range(n_steps := 100):
 
     # manage stochasticity
     rng, rng_act, key_step = random.split(key)
     key_act = random.split(rng_act, len(env.agents))
 
-    # sample actions and append to state sequence
+    # sample random actions
     act = {a: env.action_space(a).sample(k)
         for a, k in zip(env.agents, key_act)}
 
-    # step the environment
+    # store and step
     state_sequence.append((key_act, state, act))
     obs, state, reward, done, info = env.step(key_step, act, state)
 
@@ -70,8 +65,8 @@ vis.animate()
 - [x] Parallel pygame vis
     - [ ] Parallel bullet renderings
     - [ ] Combine parallell plots into one (maybe out of parabellum scope)
-- [ ] Color for health?
-- [ ] Add the ability to see ongoing game.
+- [ ] Add skin to visualizer.
+- [x] Add the ability to see ongoing game.
 - [ ] Bug test friendly fire.
 - [x] Start sim from arbitrary state.
 - [ ] Save when the episode ends in some state/obs variable

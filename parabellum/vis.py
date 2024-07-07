@@ -40,7 +40,7 @@ def text_fn(text):
 
 
 class Visualizer(SMAXVisualizer):
-    def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None):
+    def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None, skin=None):
         self.fig, self.ax = None, None
         super().__init__(env, state_seq, reward_seq)
         # clear the figure made by SMAXVisualizer
@@ -99,7 +99,7 @@ class Visualizer(SMAXVisualizer):
             title = f"{width}x{width}m in {self.env.scenario.place}"
             text = text_fn(font.render(title, True, self.fg))
             # center the text
-            screen.blit(text, (self.s // 2 - text.get_width() // 2, 10))
+            screen.blit(text, (self.s // 2 - text.get_width() // 2, self.pad // 4))
             # draw edge around terrain
             pygame.draw.rect(
                 screen,
@@ -164,26 +164,28 @@ class Visualizer(SMAXVisualizer):
         if self.env.action_type != "discrete":
             return
 
-        def coord_fn(idx, n, team):
+        def coord_fn(idx, n, team, text):
+            text_adj = text.get_width() / 2
+            is_ally = team == "ally"
             return (
                 # vertically centered so that n / 2 is above and below the center
-                self.pad / 4 if team == 0 else self.s - self.pad / 4,
+                self.pad + self.width + self.pad / 2 - text_adj
+                if is_ally
+                else self.pad / 2 - text_adj,
                 self.s / 2 - (n / 2) * self.s / 20 + idx * self.s / 20,
             )
 
-        for idx in range(self.env.num_allies):
-            symb = action_to_symbol.get(action[f"ally_{idx}"].astype(int).item(), "Ø")
-            font = pygame.font.SysFont("Fira Code", jnp.sqrt(self.s).astype(int).item())
-            text = text_fn(font.render(symb, True, self.fg))
-            coord = coord_fn(idx, self.env.num_allies, 0)
-            screen.blit(text, coord)
-
-        for idx in range(self.env.num_enemies):
-            symb = action_to_symbol.get(action[f"enemy_{idx}"].astype(int).item(), "Ø")
-            font = pygame.font.SysFont("Fira Code", jnp.sqrt(self.s).astype(int).item())
-            text = text_fn(font.render(symb, True, self.fg))
-            coord = coord_fn(idx, self.env.num_enemies, 1)
-            screen.blit(text, coord)
+        for team, number in [("ally", 0), ("enemy", 1)]:
+            for idx in range(self.env.num_allies):
+                symb = action_to_symbol.get(
+                    action[f"{team}_{idx}"].astype(int).item(), "Ø"
+                )
+                font = pygame.font.SysFont(
+                    "Fira Code", jnp.sqrt(self.s).astype(int).item()
+                )
+                text = text_fn(font.render(symb, True, self.fg))
+                coord = coord_fn(idx, self.env.num_allies, team, text)
+                screen.blit(text, coord)
 
     def render_obstacles(self, screen):
         for c, d in zip(self.env.obstacle_coords, self.env.obstacle_deltas):
