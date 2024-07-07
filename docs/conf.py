@@ -1,7 +1,4 @@
 # Configuration file for the Sphinx documentation builder.
-#
-# For the full list of built-in configuration values, see the documentation:
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
 import sys
@@ -26,7 +23,21 @@ templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
-html_theme = "sphinx_rtd_theme"
+# Use the alabaster theme
+html_theme = "alabaster"
+
+# Theme options are theme-specific and customize the look and feel of a theme
+# further.  For a list of options available for each theme, see the
+# documentation.
+html_theme_options = {
+    "description": "Ultra-Scalable Warfare Simulation Engine",
+    "github_user": "syrkis",
+    "github_repo": "parabellum",
+    "github_button": True,
+    "github_type": "star",
+    "fixed_sidebar": True,
+}
+
 html_static_path = ["_static"]
 
 # -- Extension configuration -------------------------------------------------
