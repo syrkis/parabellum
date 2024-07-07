@@ -71,5 +71,5 @@ vis.animate()
 - [x] Start sim from arbitrary state.
 - [ ] Save when the episode ends in some state/obs variable
 - [ ] Look for the source of the bug when using more Allies than Enemies
-- [ ] Y inversed axis for parabellum visualization
+- [x] Y inversed axis for parabellum visualization
 - [ ] Units see through obstacles? 
