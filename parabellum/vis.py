@@ -130,7 +130,7 @@ class Visualizer(SMAXVisualizer):
         # save the images
         clip = ImageSequenceClip(frames, fps=48)
         clip.write_videofile(save_fname, fps=48)
-        # clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
+        clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
         pygame.quit()
 
     def render_agents(self, screen, state):
