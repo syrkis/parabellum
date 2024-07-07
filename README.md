@@ -30,8 +30,7 @@ import parabellum as pb
 from jax import random
 
 # define the scenario
-place = "Thun, Swizerland"
-terrain = pb.terrain_fn(place, 1000)
+terrain = pb.terrain_fn(place := "Thun,  Swizerland", 1000)
 scenario = pb.make_scenario(place, terrain, 10, 10)
 env = pb.Parabellum(scenario)  # <- Parabellum is the central class of parabellum
 
