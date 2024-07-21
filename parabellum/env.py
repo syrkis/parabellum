@@ -3,13 +3,13 @@
 import jax.numpy as jnp
 import jax
 import numpy as np
-from jax import random
+from jax import random, Array
 from jax import jit
 from flax.struct import dataclass
 import chex
 from jax import vmap
-from jaxmarl.environments.smax.smax_env import State, SMAX
-from typing import Tuple, Dict
+from jaxmarl.environments.smax.smax_env import SMAX
+from typing import Tuple, Dict, cast
 from functools import partial
 
 
@@ -18,13 +18,26 @@ class Scenario:
     """Parabellum scenario"""
 
     place: str
-    terrain_raster: chex.Array
+    terrain_raster: jnp.ndarray
     unit_types: chex.Array
     num_allies: int
     num_enemies: int
 
     smacv2_position_generation: bool = False
     smacv2_unit_type_generation: bool = False
+
+@dataclass
+class State:
+    unit_positions: Array
+    unit_alive: Array
+    unit_teams: Array
+    unit_health: Array
+    unit_types: Array
+    prev_movement_actions: Array
+    prev_attack_actions: Array
+    time: int
+    terminal: bool
+    unit_weapon_cooldowns: Array
 
 
 # default scenario
@@ -46,7 +59,7 @@ def make_scenario(place, terrain_raster, num_allies=9, num_enemies=10):
     return Scenario(place, terrain_raster, unit_types, num_allies, num_enemies)
 
 
-def spawn_fn(pool: jnp.ndarray, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
+def spawn_fn(pool, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
     """Spawns n agents on a map."""
     rng, key_start, key_noise = random.split(rng, 3)
     noise = random.uniform(key_noise, (n, 2)) * 0.5
@@ -80,22 +93,22 @@ class Environment(SMAX):
         self.scenario = scenario
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
-        self._push_units_away = lambda x: x  # overwrite push units
-        self.top_sector = sector_fn(self.terrain_raster, 0)
-        self.low_sector = sector_fn(self.terrain_raster, 24)
+        self._push_units_away = lambda state, firmness = 1: state  # overwrite push units
+        self.top_sector, self.top_sector_offset = sector_fn(self.terrain_raster, 0)
+        self.low_sector, self.low_sector_offset = sector_fn(self.terrain_raster, 24)
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
         ally_key, enemy_key = jax.random.split(rng)
-        team_0_start = spawn_fn(*self.top_sector, self.num_allies, ally_key)
-        team_1_start = spawn_fn(*self.low_sector, self.num_enemies, enemy_key)
+        team_0_start = spawn_fn(self.top_sector, self.top_sector_offset, self.num_allies, ally_key)
+        team_1_start = spawn_fn(self.low_sector, self.low_sector_offset, self.num_enemies, enemy_key)
         unit_positions = jnp.concatenate([team_0_start, team_1_start])
         unit_teams = jnp.zeros((self.num_agents,))
         unit_teams = unit_teams.at[self.num_allies :].set(1)
         unit_weapon_cooldowns = jnp.zeros((self.num_agents,))
         # default behaviour spawn all marines
-        unit_types = self.scenario.unit_types
+        unit_types = cast(Array, self.scenario.unit_types)
         unit_health = self.unit_type_health[unit_types]
         state = State(
             unit_positions=unit_positions,
@@ -109,7 +122,7 @@ class Environment(SMAX):
             terminal=False,
             unit_weapon_cooldowns=unit_weapon_cooldowns,
         )
-        state = self._push_units_away(state)
+        state = self._push_units_away(state)  # type: ignore
         obs = self.get_obs(state)
         world_state = self.get_world_state(state)
         obs["world_state"] = jax.lax.stop_gradient(world_state)
@@ -141,7 +154,7 @@ class Environment(SMAX):
         key: chex.PRNGKey,
         state: State,
         actions: Tuple[chex.Array, chex.Array],
-    ) -> Tuple[Dict[str, chex.Array], State, Dict[str, float], Dict[str, bool], Dict]:
+    ) -> State:
         @partial(jax.vmap, in_axes=(None, None, 0, 0))
         def intersect_fn(pos, new_pos, obs, obs_end):
             d1 = jnp.cross(obs - pos, new_pos - pos)
@@ -167,7 +180,7 @@ class Environment(SMAX):
             # because these are easier to encode as actions than the four
             # diagonal directions. Then rotate the velocity 45
             # degrees anticlockwise to compute the movement.
-            pos = state.unit_positions[idx]
+            pos = cast(Array, state.unit_positions[idx])
             new_pos = (
                 pos
                 + vec
@@ -219,6 +232,7 @@ class Environment(SMAX):
                 lambda: action + self.num_allies - self.num_movement_actions,
                 lambda: self.num_allies - 1 - (action - self.num_movement_actions),
             )
+            attacked_idx = cast(int, attacked_idx)  # Cast to int
             # deal with no-op attack actions (i.e. agents that are moving instead)
             attacked_idx = jax.lax.select(
                 action < self.num_movement_actions, idx, attacked_idx
@@ -250,7 +264,7 @@ class Environment(SMAX):
             bystander_idxs = bystander_fn(attacked_idx)  # TODO: use
             bystander_valid = (
                 jnp.where(attack_valid, bystander_idxs, jnp.zeros((self.num_agents,)))
-                .astype(jnp.bool_)
+                .astype(jnp.bool_) # type: ignore
                 .astype(jnp.float32)
             )
             bystander_health_diff = (
@@ -365,7 +379,8 @@ class Environment(SMAX):
         #########################################################
 
         unit_weapon_cooldowns = state.unit_weapon_cooldowns + cooldown_diff
-        state = state.replace(
+        # replace unit health, unit positions and unit weapon cooldowns
+        state = state.replace(  # type: ignore
             unit_health=unit_health,
             unit_positions=pos,
             unit_weapon_cooldowns=unit_weapon_cooldowns,
