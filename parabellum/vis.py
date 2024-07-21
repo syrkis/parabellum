@@ -3,35 +3,36 @@ Visualizer for the Parabellum environment
 """
 
 from tqdm import tqdm
-import jax.numpy as jnp
-import jax
-from jax import vmap
-from jax import tree_util
 from functools import partial
 import darkdetect
+import os
 import numpy as np
 import pygame
 import matplotlib.pyplot as plt
-import os
 from moviepy.editor import ImageSequenceClip
-from typing import Optional
-from jaxmarl.environments.multi_agent_env import MultiAgentEnv
-from jaxmarl.viz.visualizer import SMAXVisualizer
-
-# default dict
+from dataclasses import dataclass
 from collections import defaultdict
+from typing import Optional, List, Tuple
+
+import jax
+from jax import vmap, tree_util, numpy as jnp
+from jaxmarl.environments.multi_agent_env import MultiAgentEnv
+from jaxmarl.environments.smax import SMAX
+from jaxmarl.viz.visualizer import SMAXVisualizer
+from parabellum import Environment
 
 
 # constants
 action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
 
 
-def small_multiples():
-    # make video of small multiples based on all videos in output
-    video_files = [f"output/parabellum_{i}.mp4" for i in range(4)]
-    # load mp4 videos and make a grid
-    clips = [ImageSequenceClip.load(filename) for filename in video_files]
-    print(len(clips))
+# skin dataclass
+class Skin:
+    enemy = (255, 0, 0)
+    ally = (0, 255, 0)
+    bullet = (0, 0, 255)
+    obstacle = (255, 255, 0)
+    agent = (0, 0, 0)
 
 
 def text_fn(text):
@@ -40,10 +41,9 @@ def text_fn(text):
 
 
 class Visualizer(SMAXVisualizer):
-    def __init__(self, env: MultiAgentEnv, state_seq, reward_seq=None, skin=None):
+    def __init__(self, env: Environment, state_seq, reward_seq=None, skin=None):
+        super(Visualizer, self).__init__(env, state_seq, reward_seq)
         self.fig, self.ax = None, None
-        super().__init__(env, state_seq, reward_seq)
-        # clear the figure made by SMAXVisualizer
         plt.close()
         self.bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
         self.fg = (255, 255, 255) if darkdetect.isDark() else (0, 0, 0)
@@ -53,15 +53,19 @@ class Visualizer(SMAXVisualizer):
         self.s = self.width + self.pad + self.pad
         self.scale = self.width / env.map_width
         self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
+        self.env = env
         # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
 
-    def animate(self, save_fname: str = "output/parabellum.mp4"):
+    def animate(self, save_fname: Optional[str] = "output/parabellum.mp4", view=None):
+        save_fname = save_fname or "output/parabellum.mp4"
         multi_dim = self.state_seq[0][1].unit_positions.ndim > 2
         if multi_dim:
             n_envs = self.state_seq[0][1].unit_positions.shape[0]
             if not self.have_expanded:
                 state_seqs = vmap(self.env.expand_state_seq)(self.state_seq)
                 self.have_expanded = True
+            else:
+                state_seqs = self.state_seq
             for i in range(n_envs):
                 state_seq = jax.tree_map(lambda x: x[i], state_seqs)
                 action_seq = jax.tree_map(lambda x: x[i], self.action_seq)
@@ -115,7 +119,6 @@ class Visualizer(SMAXVisualizer):
 
             self.render_agents(screen, state)  # render the agents
             self.render_action(screen, action)
-            # self.render_obstacles(screen)  # render the obstacles
 
             # bullets
             """ if idx < len(self.bullet_seq) * 8:
@@ -147,7 +150,7 @@ class Visualizer(SMAXVisualizer):
             if hp > 0:
                 hp_frac = hp / self.env.unit_type_health[kind]
                 unit_size = self.env.unit_type_radiuses[kind]
-                radius = jnp.ceil((unit_size * self.scale * hp_frac)).astype(int) + 1
+                radius = float(jnp.ceil((unit_size * self.scale * hp_frac)).astype(int) + 1)
                 pygame.draw.circle(screen, face_col, pos, radius)
                 pygame.draw.circle(screen, self.fg, pos, radius, 1)
 
@@ -186,12 +189,6 @@ class Visualizer(SMAXVisualizer):
                 text = text_fn(font.render(symb, True, self.fg))
                 coord = coord_fn(idx, self.env.num_allies, team, text)
                 screen.blit(text, coord)
-
-    def render_obstacles(self, screen):
-        for c, d in zip(self.env.obstacle_coords, self.env.obstacle_deltas):
-            d = tuple(((c + d) * self.scale).tolist())
-            c = tuple((c * self.scale).tolist())
-            pygame.draw.line(screen, self.fg, c, d, 5)
 
     def render_bullets(self, screen, bullets, jdx):
         jdx += 1
@@ -274,13 +271,13 @@ def bullet_fn(env, states):
 # test the visualizer
 if __name__ == "__main__":
     from jax import random, numpy as jnp
-    from parabellum import Parabellum, scenarios
+    from parabellum import Environment, scenarios
 
     # small_multiples()  # testing small multiples (not working yet)
     # exit()
 
     n_envs = 2
-    env = Parabellum(scenarios["default"], action_type="discrete")
+    env = Environment(scenarios["default"], action_type="discrete")
     rng, reset_rng = random.split(random.PRNGKey(0))
     reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)
