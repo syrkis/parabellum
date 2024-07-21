@@ -15,7 +15,7 @@ from collections import defaultdict
 from typing import Optional, List, Tuple
 
 import jax
-from jax import vmap, tree_util, numpy as jnp
+from jax import vmap, tree_util, numpy as jnp, Array
 from jaxmarl.environments.multi_agent_env import MultiAgentEnv
 from jaxmarl.environments.smax import SMAX
 from jaxmarl.viz.visualizer import SMAXVisualizer
@@ -28,11 +28,12 @@ action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
 
 # skin dataclass
 class Skin:
-    enemy = (255, 0, 0)
-    ally = (0, 255, 0)
-    bullet = (0, 0, 255)
-    obstacle = (255, 255, 0)
-    agent = (0, 0, 0)
+    fg: Tuple[int, int, int]
+    bg: Tuple[int, int, int]
+    ally: Tuple[int, int, int]
+    enemy: Tuple[int, int, int]
+    basemap: Optional[Array]
+    mask: Optional[Array]
 
 
 def text_fn(text):
@@ -56,7 +57,7 @@ class Visualizer(SMAXVisualizer):
         self.env = env
         # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
 
-    def animate(self, save_fname: Optional[str] = "output/parabellum.mp4", view=None):
+    def animate(self, save_fname: Optional[str] = "output/parabellum.mp4", view=None, basemap=None):
         save_fname = save_fname or "output/parabellum.mp4"
         multi_dim = self.state_seq[0][1].unit_positions.ndim > 2
         if multi_dim:
@@ -70,22 +71,29 @@ class Visualizer(SMAXVisualizer):
                 state_seq = jax.tree_map(lambda x: x[i], state_seqs)
                 action_seq = jax.tree_map(lambda x: x[i], self.action_seq)
                 self.animate_one(
-                    state_seq, action_seq, save_fname.replace(".mp4", f"_{i}.mp4")
+                    state_seq, action_seq, save_fname.replace(".mp4", f"_{i}.mp4"),
+                    basemap=basemap
                 )
         else:
             state_seq = self.env.expand_state_seq(self.state_seq)
-            self.animate_one(state_seq, self.action_seq, save_fname)
+            self.animate_one(state_seq, self.action_seq, save_fname, basemap=basemap)
 
-    def animate_one(self, state_seq, action_seq, save_fname):
+
+    def animate_one(self, state_seq, action_seq, save_fname, basemap=None):
         frames = []  # frames for the video
         pygame.init()  # initialize pygame
-        terrain = np.array(self.env.terrain_raster.T)
-        rgb_array = np.zeros((terrain.shape[0], terrain.shape[1], 3), dtype=np.uint8)
-        if darkdetect.isLight():
-            rgb_array += 255
-        rgb_array[terrain == 1] = self.fg
-        mask_surface = pygame.surfarray.make_surface(rgb_array)
-        mask_surface = pygame.transform.scale(mask_surface, (self.width, self.width))
+        if basemap is None:
+            terrain = np.array(self.env.terrain_raster.T)
+            rgb_array = np.zeros((terrain.shape[0], terrain.shape[1], 3), dtype=np.uint8)
+            if darkdetect.isLight():
+                rgb_array += 255
+            rgb_array[terrain == 1] = self.fg
+            mask_surface = pygame.surfarray.make_surface(rgb_array)
+            mask_surface = pygame.transform.scale(mask_surface, (self.width, self.width))
+        else:
+            mask_surface = pygame.surfarray.make_surface(basemap[:, :, :-1].transpose(1, 0, 2))
+            mask_surface = pygame.transform.scale(mask_surface, (self.width, self.width))
+
 
         for idx, (_, state, _) in tqdm(enumerate(state_seq), total=len(self.state_seq)):
             action = action_seq[idx // self.env.world_steps_per_env_step]
@@ -132,7 +140,7 @@ class Visualizer(SMAXVisualizer):
             frames.append(pixels)
         # save the images
         clip = ImageSequenceClip(frames, fps=48)
-        clip.write_videofile(save_fname, fps=48)
+        # clip.write_videofile(save_fname, fps=48)
         clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
         pygame.quit()
 

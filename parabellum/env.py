@@ -33,11 +33,11 @@ class State:
     unit_teams: Array
     unit_health: Array
     unit_types: Array
+    unit_weapon_cooldowns: Array
     prev_movement_actions: Array
     prev_attack_actions: Array
     time: int
     terminal: bool
-    unit_weapon_cooldowns: Array
 
 
 # default scenario

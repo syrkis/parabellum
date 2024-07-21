@@ -27,6 +27,7 @@ numpy = "<2"
 ipykernel = "^6.29.5"
 folium = "^0.17.0"
 pandas = "^2.2.2"
+contextily = "^1.6.0"
 
 [tool.poetry.group.docs]
 optional = true

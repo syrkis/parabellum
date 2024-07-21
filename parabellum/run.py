@@ -10,6 +10,7 @@ import darkdetect
 import jax.numpy as jnp
 from chex import dataclass
 import jaxmarl
+from jax import Array
 from typing import Tuple, List, Dict, Optional
 import parabellum as pb
 
@@ -20,7 +21,7 @@ bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
 
 
 # types
-State = jaxmarl.environments.smax.smax_env.State
+State = jaxmarl.environments.smax.smax_env.State # type: ignore
 Obs = Reward = Done = Action = Dict[str, jnp.ndarray]
 StateSeq = List[Tuple[jnp.ndarray, State, Action]]
 
@@ -35,12 +36,12 @@ class Control:
 @dataclass
 class Game:
     clock: pygame.time.Clock
-    state: State
+    state: State  # type: ignore
     obs: Dict
     state_seq: StateSeq
     control: Control
     env: pb.Environment
-    rng: random.PRNGKey
+    rng: Array
 
 
 def handle_event(event, control_state):
@@ -100,7 +101,7 @@ def step_fn(game):
 
 # state
 if __name__ == "__main__":
-    env = pb.Parabellum(pb.scenarios["default"])
+    env = pb.Environment(pb.scenarios["default"])
     pygame.init()
     screen = pygame.display.set_mode((1000, 1000))
     render = partial(render_fn, screen)
@@ -115,7 +116,7 @@ if __name__ == "__main__":
         state=state,
         obs=obs,
     )
-    game = Game(**kwargs)
+    game = Game(**kwargs)  # type: ignore
 
     while game.control.running:
         game = control_fn(game)
