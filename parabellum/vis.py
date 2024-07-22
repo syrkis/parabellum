@@ -35,9 +35,11 @@ class Skin:
     bg: Tuple[int, int, int] = (0, 0, 0)
     ally: Tuple[int, int, int]  = (0, 255, 0)
     enemy: Tuple[int, int, int]  = (255, 0, 0)
-    pad: int  = 10
+    pad: int  = 100
     size: int  = 1000
-    scale: float = 10.0
+    fps: int = 24
+    map_size: int = 1000   # size of the map in Env
+    vis_size: int = 1000   # size of the map in Vis (exluding padding)
 
 
 class Visualizer(SMAXVisualizer):
@@ -64,12 +66,13 @@ def animate_fn(env, skin, image, state_seq, action_seq, save_fname):
     frames = []
     for idx, (state_tup, action) in enumerate(zip(state_seq, action_seq)):
         frames += [frame_fn(env, skin, image, state_tup[1], action, idx)]
-    ImageSequenceClip(frames, fps=24).write_gif(save_fname, fps=24)
+    ImageSequenceClip(frames, fps=skin.fps).write_gif(save_fname, fps=skin.fps)
     pygame.quit()
 
 
 def init_frame(env, skin, image, state: pb.State, action: Array, idx: int) -> pygame.Surface:
-    frame = pygame.Surface((skin.size, skin.size), pygame.SRCALPHA | pygame.HWSURFACE)
+    dims = (skin.size + skin.pad * 2, skin.size + skin.pad * 2)
+    frame = pygame.Surface(dims, pygame.SRCALPHA | pygame.HWSURFACE)
     return frame
 
 
@@ -91,7 +94,8 @@ def frame_fn(env, skin, image, state: pb.State, action: Array, idx: int) -> np.n
 def render_background(env, skin, image, frame, state, action):
     coords = (skin.pad, skin.pad, skin.size, skin.size)
     frame.fill(skin.bg)  # clear the frame
-    frame.blit(image, coords)  # draw the background
+    frame.blit(image, coords)
+    pygame.draw.rect(frame, skin.fg, coords, 2)
     return frame
 
 def render_action(env, skin, image, frame, state, action):
@@ -103,11 +107,11 @@ def render_bullet(env, skin, image, frame, state, action):
 def render_agents(env, skin, image, frame, state, action):
     units = state.unit_positions, state.unit_teams, state.unit_types, state.unit_health
     for idx, (pos, team, kind, health) in enumerate(zip(*units)):
-        pos = tuple((pos * skin.scale).astype(int))
+        pos = tuple((pos).astype(int) + skin.pad)
         # draw the agent
         if health > 0:
             unit_size = env.unit_type_radiuses[kind]
-            radius = float(jnp.ceil((unit_size * skin.scale)).astype(int) + 1)
+            radius = float(jnp.ceil((unit_size)).astype(int) + 1)
             pygame.draw.circle(frame, skin.fg, pos, radius)
             pygame.draw.circle(frame, skin.fg, pos, radius, 1)
     return frame
@@ -118,7 +122,7 @@ def text_fn(text):
     return pygame.transform.rotate(text, 180)
 
 
-def image_fn(skin: Skin):
+def image_fn(skin: Skin):  # TODO: fix
     """Create an image for background (basemap or maskmap)"""
     image = np.zeros((skin.size, skin.size, 3), dtype=np.uint8)
     image[skin.maskmap == 1] = skin.fg
