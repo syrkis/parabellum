@@ -7,7 +7,6 @@ from functools import partial
 from typing import Optional, List, Tuple
 from contextlib import contextmanager
 
-
 # JAX and JAX-related imports
 import jax
 from chex import dataclass
@@ -25,7 +24,6 @@ from moviepy.editor import ImageSequenceClip
 from tqdm import tqdm
 
 # Local imports
-from parabellum import Environment
 import parabellum as pb
 
 
@@ -42,17 +40,8 @@ class Skin:
     scale: float = 10.0
 
 
-@contextmanager
-def pygame_context():
-    pygame.init()
-    try:
-        yield
-    finally:
-        pygame.quit()
-
-
 class Visualizer(SMAXVisualizer):
-    def __init__(self, env: Environment, state_seq, skin: Skin, reward_seq=None):
+    def __init__(self, env: pb.Environment, state_seq, skin: Skin, reward_seq=None):
         super(Visualizer, self).__init__(env, state_seq, reward_seq)
 
         # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
@@ -63,10 +52,9 @@ class Visualizer(SMAXVisualizer):
         self.env = env
 
     def animate(self, save_fname: Optional[str] = "output/parabellum", view=None):
-        save_fname = save_fname or "output/parabellum.mp4"
-        state_seq, action_seq = expand_fn(self.env, self.state_seq, self.action_seq)
-        state_seq_seq, action_seq_seq = unbatch_fn(state_seq, action_seq)
-        for idx, (state_seq, action_seq) in enumerate((state_seq_seq, action_seq_seq)):
+        expanded_state_seq, expanded_action_seq = expand_fn(self.env, self.state_seq, self.action_seq)
+        state_seq_seq, action_seq_seq = unbatch_fn(expanded_state_seq, expanded_action_seq)
+        for idx, (state_seq, action_seq) in enumerate(zip(state_seq_seq, action_seq_seq)):
             animate_fn(self.env, self.skin, self.image, state_seq, action_seq, f"{save_fname}_{idx}.gif")
 
 
@@ -104,23 +92,25 @@ def render_background(env, skin, image, frame, state, action):
     coords = (skin.pad, skin.pad, skin.size, skin.size)
     frame.fill(skin.bg)  # clear the frame
     frame.blit(image, coords)  # draw the background
+    return frame
 
 def render_action(env, skin, image, frame, state, action):
-    pass
+    return frame
 
 def render_bullet(env, skin, image, frame, state, action):
-    pass
+    return frame
 
 def render_agents(env, skin, image, frame, state, action):
     units = state.unit_positions, state.unit_teams, state.unit_types, state.unit_health
     for idx, (pos, team, kind, health) in enumerate(zip(*units)):
-        pos = tuple(((pos * skin.scalskin.pad).tolist()))
+        pos = tuple((pos * skin.scale).astype(int))
         # draw the agent
         if health > 0:
             unit_size = env.unit_type_radiuses[kind]
             radius = float(jnp.ceil((unit_size * skin.scale)).astype(int) + 1)
             pygame.draw.circle(frame, skin.fg, pos, radius)
             pygame.draw.circle(frame, skin.fg, pos, radius, 1)
+    return frame
 
 
 def text_fn(text):
