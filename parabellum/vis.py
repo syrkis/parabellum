@@ -2,38 +2,125 @@
 Visualizer for the Parabellum environment
 """
 
-from tqdm import tqdm
+# Standard library imports
 from functools import partial
-import darkdetect
-import os
-import numpy as np
-import pygame
-import matplotlib.pyplot as plt
-from moviepy.editor import ImageSequenceClip
-from dataclasses import dataclass
-from collections import defaultdict
 from typing import Optional, List, Tuple
+from contextlib import contextmanager
 
+
+# JAX and JAX-related imports
 import jax
-from jax import vmap, tree_util, numpy as jnp, Array
+from chex import dataclass
+import chex
+from jax import vmap, tree_util, Array, jit
+import jax.numpy as jnp
 from jaxmarl.environments.multi_agent_env import MultiAgentEnv
 from jaxmarl.environments.smax import SMAX
 from jaxmarl.viz.visualizer import SMAXVisualizer
+
+# Third-party imports
+import numpy as np
+import pygame
+from moviepy.editor import ImageSequenceClip
+from tqdm import tqdm
+
+# Local imports
 from parabellum import Environment
-
-
-# constants
-action_to_symbol = {0: "↑", 1: "→", 2: "↓", 3: "←", 4: "Ø"}
+import parabellum as pb
 
 
 # skin dataclass
 class Skin:
-    fg: Tuple[int, int, int]
-    bg: Tuple[int, int, int]
-    ally: Tuple[int, int, int]
-    enemy: Tuple[int, int, int]
-    basemap: Optional[Array]
-    mask: Optional[Array]
+    basemap: chex.Array = jnp.zeros((1000, 1000))  # basemap of buildings
+    maskmap: chex.Array = jnp.zeros((1000, 1000))  # maskmap of buildings
+    fg: Tuple[int, int, int] = (255, 255, 255)
+    bg: Tuple[int, int, int] = (0, 0, 0)
+    ally: Tuple[int, int, int]  = (0, 255, 0)
+    enemy: Tuple[int, int, int]  = (255, 0, 0)
+    pad: int  = 10
+    size: int  = 1000
+    scale: float = 10.0
+
+
+@contextmanager
+def pygame_context():
+    pygame.init()
+    try:
+        yield
+    finally:
+        pygame.quit()
+
+
+class Visualizer(SMAXVisualizer):
+    def __init__(self, env: Environment, state_seq, skin: Skin, reward_seq=None):
+        super(Visualizer, self).__init__(env, state_seq, reward_seq)
+
+        # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
+        self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
+        self.state_seq = state_seq
+        self.image = image_fn(skin)
+        self.skin = skin
+        self.env = env
+
+    def animate(self, save_fname: Optional[str] = "output/parabellum", view=None):
+        save_fname = save_fname or "output/parabellum.mp4"
+        state_seq, action_seq = expand_fn(self.env, self.state_seq, self.action_seq)
+        state_seq_seq, action_seq_seq = unbatch_fn(state_seq, action_seq)
+        for idx, (state_seq, action_seq) in enumerate((state_seq_seq, action_seq_seq)):
+            animate_fn(self.env, self.skin, self.image, state_seq, action_seq, f"{save_fname}_{idx}.gif")
+
+
+# functions
+def animate_fn(env, skin, image, state_seq, action_seq, save_fname):
+    pygame.init()
+    frames = []
+    for idx, (state_tup, action) in enumerate(zip(state_seq, action_seq)):
+        frames += [frame_fn(env, skin, image, state_tup[1], action, idx)]
+    ImageSequenceClip(frames, fps=24).write_gif(save_fname, fps=24)
+    pygame.quit()
+
+
+def init_frame(env, skin, image, state: pb.State, action: Array, idx: int) -> pygame.Surface:
+    frame = pygame.Surface((skin.size, skin.size), pygame.SRCALPHA | pygame.HWSURFACE)
+    return frame
+
+
+def transform_frame(env, skin, frame):
+    frame = np.rot90(pygame.surfarray.pixels3d(frame).swapaxes(0, 1), 2)
+    return frame
+
+
+def frame_fn(env, skin, image, state: pb.State, action: Array, idx: int) -> np.ndarray:
+    """Create a frame"""
+    frame = init_frame(env, skin, image, state, action, idx)
+
+    pipeline = [render_background, render_agents, render_action, render_bullet]
+    for fn in pipeline:
+        frame = fn(env, skin, image, frame, state, action)
+
+    return transform_frame(env, skin, frame)
+
+def render_background(env, skin, image, frame, state, action):
+    coords = (skin.pad, skin.pad, skin.size, skin.size)
+    frame.fill(skin.bg)  # clear the frame
+    frame.blit(image, coords)  # draw the background
+
+def render_action(env, skin, image, frame, state, action):
+    pass
+
+def render_bullet(env, skin, image, frame, state, action):
+    pass
+
+def render_agents(env, skin, image, frame, state, action):
+    units = state.unit_positions, state.unit_teams, state.unit_types, state.unit_health
+    for idx, (pos, team, kind, health) in enumerate(zip(*units)):
+        pos = tuple(((pos * skin.scalskin.pad).tolist()))
+        # draw the agent
+        if health > 0:
+            unit_size = env.unit_type_radiuses[kind]
+            radius = float(jnp.ceil((unit_size * skin.scale)).astype(int) + 1)
+            pygame.draw.circle(frame, skin.fg, pos, radius)
+            pygame.draw.circle(frame, skin.fg, pos, radius, 1)
 
 
 def text_fn(text):
@@ -41,266 +128,34 @@ def text_fn(text):
     return pygame.transform.rotate(text, 180)
 
 
-class Visualizer(SMAXVisualizer):
-    def __init__(self, env: Environment, state_seq, reward_seq=None, skin=None):
-        super(Visualizer, self).__init__(env, state_seq, reward_seq)
-        self.fig, self.ax = None, None
-        plt.close()
-        self.bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
-        self.fg = (255, 255, 255) if darkdetect.isDark() else (0, 0, 0)
-        self.pad = 75
-        # TODO: make sure it's always a 1024x1024 image
-        self.width = 1000
-        self.s = self.width + self.pad + self.pad
-        self.scale = self.width / env.map_width
-        self.action_seq = [action for _, _, action in state_seq]  # bcs SMAX bug
-        self.env = env
-        # self.bullet_seq = vmap(partial(bullet_fn, self.env))(self.state_seq)
-
-    def animate(self, save_fname: Optional[str] = "output/parabellum.mp4", view=None, basemap=None):
-        save_fname = save_fname or "output/parabellum.mp4"
-        multi_dim = self.state_seq[0][1].unit_positions.ndim > 2
-        if multi_dim:
-            n_envs = self.state_seq[0][1].unit_positions.shape[0]
-            if not self.have_expanded:
-                state_seqs = vmap(self.env.expand_state_seq)(self.state_seq)
-                self.have_expanded = True
-            else:
-                state_seqs = self.state_seq
-            for i in range(n_envs):
-                state_seq = jax.tree_map(lambda x: x[i], state_seqs)
-                action_seq = jax.tree_map(lambda x: x[i], self.action_seq)
-                self.animate_one(
-                    state_seq, action_seq, save_fname.replace(".mp4", f"_{i}.mp4"),
-                    basemap=basemap
-                )
-        else:
-            state_seq = self.env.expand_state_seq(self.state_seq)
-            self.animate_one(state_seq, self.action_seq, save_fname, basemap=basemap)
+def image_fn(skin: Skin):
+    """Create an image for background (basemap or maskmap)"""
+    image = np.zeros((skin.size, skin.size, 3), dtype=np.uint8)
+    image[skin.maskmap == 1] = skin.fg
+    image = pygame.surfarray.make_surface(image)
+    image = pygame.transform.scale(image, (skin.size, skin.size))
+    return image
 
 
-    def animate_one(self, state_seq, action_seq, save_fname, basemap=None):
-        frames = []  # frames for the video
-        pygame.init()  # initialize pygame
-        if basemap is None:
-            terrain = np.array(self.env.terrain_raster.T)
-            rgb_array = np.zeros((terrain.shape[0], terrain.shape[1], 3), dtype=np.uint8)
-            if darkdetect.isLight():
-                rgb_array += 255
-            rgb_array[terrain == 1] = self.fg
-            mask_surface = pygame.surfarray.make_surface(rgb_array)
-            mask_surface = pygame.transform.scale(mask_surface, (self.width, self.width))
-        else:
-            mask_surface = pygame.surfarray.make_surface(basemap[:, :, :-1].transpose(1, 0, 2))
-            mask_surface = pygame.transform.scale(mask_surface, (self.width, self.width))
+def unbatch_fn(state_seq, action_seq):
+    """state seq is a list of tuples of (step_key, state, actions)."""
+    if is_multi_run(state_seq):
+        n_envs = state_seq[0][1].unit_positions.shape[0]
+        state_seq_seq = [jax.tree_map(lambda x: x[i], state_seq) for i in range(n_envs)]
+        action_seq_seq = [jax.tree_map(lambda x: x[i], action_seq) for i in range(n_envs)]
+    else:
+        state_seq_seq = [state_seq]
+        action_seq_seq = [action_seq]
+    return state_seq_seq, action_seq_seq
 
 
-        for idx, (_, state, _) in tqdm(enumerate(state_seq), total=len(self.state_seq)):
-            action = action_seq[idx // self.env.world_steps_per_env_step]
-            screen = pygame.Surface(
-                (self.s, self.s), pygame.HWSURFACE | pygame.DOUBLEBUF
-            )
-            screen.fill(self.bg)  # fill the screen with the background color
-            screen.blit(
-                mask_surface,
-                (self.pad, self.pad, self.width, self.width),
-            )
-            # add env.scenario.place to the title (in top padding)
-            font = pygame.font.SysFont("Fira Code", 18)
-            width = self.env.map_width
-            title = f"{width}x{width}m in {self.env.scenario.place}"
-            text = text_fn(font.render(title, True, self.fg))
-            # center the text
-            screen.blit(text, (self.s // 2 - text.get_width() // 2, self.pad // 4))
-            # draw edge around terrain
-            pygame.draw.rect(
-                screen,
-                self.fg,
-                (
-                    self.pad - 2,
-                    self.pad - 2,
-                    self.width + 4,
-                    self.width + 4,
-                ),
-                2,
-            )
-
-            self.render_agents(screen, state)  # render the agents
-            self.render_action(screen, action)
-
-            # bullets
-            """ if idx < len(self.bullet_seq) * 8:
-                bullets = self.bullet_seq[idx // 8]
-                self.render_bullets(screen, bullets, idx % 8) """
-
-            # rotate the screen and append to frames
-            pixels = pygame.surfarray.pixels3d(screen).swapaxes(0, 1)
-            # rotate the screen 180 degrees (transpose and flip)
-            pixels = np.rot90(pixels, 2)  # pygame starts in bottom left
-            frames.append(pixels)
-        # save the images
-        clip = ImageSequenceClip(frames, fps=48)
-        # clip.write_videofile(save_fname, fps=48)
-        clip.write_gif(save_fname.replace(".mp4", ".gif"), fps=24)
-        pygame.quit()
-
-    def render_agents(self, screen, state):
-        time_tuple = zip(
-            state.unit_positions,
-            state.unit_teams,
-            state.unit_types,
-            state.unit_health,
-        )
-        for idx, (pos, team, kind, hp) in enumerate(time_tuple):
-            face_col = self.fg if int(team.item()) == 0 else self.bg
-            pos = tuple(((pos * self.scale) + self.pad).tolist())
-            # draw the agent
-            if hp > 0:
-                hp_frac = hp / self.env.unit_type_health[kind]
-                unit_size = self.env.unit_type_radiuses[kind]
-                radius = float(jnp.ceil((unit_size * self.scale * hp_frac)).astype(int) + 1)
-                pygame.draw.circle(screen, face_col, pos, radius)
-                pygame.draw.circle(screen, self.fg, pos, radius, 1)
-
-            # draw the sight range
-            # sight_range = self.env.unit_type_sight_ranges[kind] * self.scale
-            # pygame.draw.circle(screen, self.fg, pos, sight_range.astype(int), 2)
-
-            # draw attack range
-            # attack_range = self.env.unit_type_attack_ranges[kind] * self.scale
-            # pygame.draw.circle(screen, self.fg, pos, attack_range.astype(int), 2)
-            # work out which agents are being shot
-
-    def render_action(self, screen, action):
-        if self.env.action_type != "discrete":
-            return
-
-        def coord_fn(idx, n, team, text):
-            text_adj = text.get_width() / 2
-            is_ally = team == "ally"
-            return (
-                # vertically centered so that n / 2 is above and below the center
-                self.pad + self.width + self.pad / 2 - text_adj
-                if is_ally
-                else self.pad / 2 - text_adj,
-                self.s / 2 - (n / 2) * self.s / 20 + idx * self.s / 20,
-            )
-
-        for team, number in [("ally", 0), ("enemy", 1)]:
-            for idx in range(self.env.num_allies):
-                symb = action_to_symbol.get(
-                    action[f"{team}_{idx}"].astype(int).item(), "Ø"
-                )
-                font = pygame.font.SysFont(
-                    "Fira Code", jnp.sqrt(self.s).astype(int).item()
-                )
-                text = text_fn(font.render(symb, True, self.fg))
-                coord = coord_fn(idx, self.env.num_allies, team, text)
-                screen.blit(text, coord)
-
-    def render_bullets(self, screen, bullets, jdx):
-        jdx += 1
-        ally_bullets, enemy_bullets = bullets
-        for source, target in ally_bullets:
-            position = source + (target - source) * jdx / 8
-            position *= self.scale
-            pygame.draw.circle(screen, self.fg, tuple(position.tolist()), 3)
-        for source, target in enemy_bullets:
-            position = source + (target - source) * jdx / 8
-            position *= self.scale
-            pygame.draw.circle(screen, self.fg, tuple(position.tolist()), 3)
+def expand_fn(env, state_seq, action_seq):
+    """Expand the state sequence"""
+    fn = env.expand_state_seq
+    state_seq = vmap(fn)(state_seq) if is_multi_run(state_seq) else fn(state_seq)
+    action_seq = [action_seq[i // env.world_steps_per_env_step] for i in range(len(state_seq))]
+    return state_seq, action_seq
 
 
-# functions
-# bullet functions
-def dist_fn(env, pos):  # computing the distances between all ally and enemy agents
-    delta = pos[None, :, :] - pos[:, None, :]
-    dist = jnp.sqrt((delta**2).sum(axis=2))
-    dist = dist[: env.num_allies, env.num_allies :]
-    return {"ally": dist, "enemy": dist.T}
-
-
-def range_fn(env, dists, ranges):  # computing what targets are in range
-    ally_range = dists["ally"] < ranges[: env.num_allies][:, None]
-    enemy_range = dists["enemy"] < ranges[env.num_allies :][:, None]
-    return {"ally": ally_range, "enemy": enemy_range}
-
-
-def target_fn(acts, in_range, team):  # computing the one hot valid targets
-    t_acts = jnp.stack([v for k, v in acts.items() if k.startswith(team)]).T
-    t_targets = jnp.where(t_acts > 4, -1, t_acts - 5)  # first 5 are move actions
-    t_attacks = jnp.eye(in_range[team].shape[1] + 1)[t_targets][:, :-1]
-    return t_attacks * in_range[team]  # one hot valid targets
-
-
-def attack_fn(env, state_seq):  # one hot attack list
-    attacks = []
-    for _, state, acts in state_seq:
-        dists = dist_fn(env, state.unit_positions)
-        ranges = env.unit_type_attack_ranges[state.unit_types]
-        in_range = range_fn(env, dists, ranges)
-        target = partial(target_fn, acts, in_range)
-        attack = {"ally": target("ally"), "enemy": target("enemy")}
-        attacks.append(attack)
-    return attacks
-
-
-def bullet_fn(env, states):
-    bullet_seq = []
-    attack_seq = attack_fn(env, states)
-
-    def aux_fn(team):
-        bullets = jnp.stack(jnp.where(one_hot[team] == 1)).T
-        # bullets = bullets.at[:, 2 if team == "ally" else 1].add(env.num_allies)
-        return bullets
-
-    state_zip = zip(states[:-1], states[1:])
-    for i, ((_, state, _), (_, n_state, _)) in enumerate(state_zip):
-        one_hot = attack_seq[i]
-        ally_bullets, enemy_bullets = aux_fn("ally"), aux_fn("enemy")
-
-        ally_bullets_source = state.unit_positions[ally_bullets[:, 0]]
-        enemy_bullets_target = n_state.unit_positions[enemy_bullets[:, 1]]
-
-        enemy_bullets_source = state.unit_positions[
-            enemy_bullets[:, 0] + env.num_allies
-        ]
-        ally_bullets_target = n_state.unit_positions[
-            ally_bullets[:, 1] + env.num_allies
-        ]
-
-        ally_bullets = jnp.stack((ally_bullets_source, ally_bullets_target), axis=1)
-        enemy_bullets = jnp.stack((enemy_bullets_source, enemy_bullets_target), axis=1)
-
-        bullet_seq.append((ally_bullets, enemy_bullets))
-    return bullet_seq
-
-
-# test the visualizer
-if __name__ == "__main__":
-    from jax import random, numpy as jnp
-    from parabellum import Environment, scenarios
-
-    # small_multiples()  # testing small multiples (not working yet)
-    # exit()
-
-    n_envs = 2
-    env = Environment(scenarios["default"], action_type="discrete")
-    rng, reset_rng = random.split(random.PRNGKey(0))
-    reset_key = random.split(reset_rng, n_envs)
-    obs, state = vmap(env.reset)(reset_key)
-    state_seq = []
-
-    for i in range(100):
-        rng, act_rng, step_rng = random.split(rng, 3)
-        act_key = random.split(act_rng, (len(env.agents), n_envs))
-        act = {
-            a: vmap(env.action_space(a).sample)(act_key[i])
-            for i, a in enumerate(env.agents)
-        }
-        step_key = random.split(step_rng, n_envs)
-        state_seq.append((step_key, state, act))
-        obs, state, reward, done, infos = vmap(env.step)(step_key, state, act)
-
-    vis = Visualizer(env, state_seq)
-    vis.animate()
+def is_multi_run(state_seq):
+    return state_seq[0][1].unit_positions.ndim > 2

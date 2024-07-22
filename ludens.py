@@ -16,7 +16,7 @@ rng, key = random.split(random.PRNGKey(seed := 0))
 obs, state = env.reset(key)
 
 state_seq = []
-for i in range(100):
+for i in range(10):
     rng, act_rng, step_key = random.split(rng, 3)
     act_key = random.split(act_rng, len(env.agents))
     actions = {a: env.action_space(a).sample(k) for a, k in zip(env.agents, act_key)}
@@ -24,7 +24,5 @@ for i in range(100):
     obs, state, reward, done, info = env.step(step_key, state, actions)
 
 
-
-
-vis = pb.Visualizer(env, state_seq)
-vis.animate(basemap=base)
+vis = pb.Visualizer(env, state_seq, pb.Skin())
+vis.animate()
