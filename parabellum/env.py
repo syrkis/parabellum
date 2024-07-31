@@ -48,7 +48,8 @@ class Parabellum(SMAX):
         self.unit_type_attack_blasts = jnp.zeros((19,), dtype=jnp.float32)
         self.max_steps = 200
         self._push_units_away = lambda x: x  # overwrite push units
-
+        self.damage_active = True 
+        
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, key: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
@@ -212,7 +213,7 @@ class Parabellum(SMAX):
             attack_valid = attack_valid & (state.unit_weapon_cooldowns[idx] <= 0.0)
             health_diff = jax.lax.select(
                 attack_valid,
-                -self.unit_type_attacks[state.unit_types[idx]],
+                -self.unit_type_attacks[state.unit_types[idx]]*self.damage_active,
                 0.0,
             )
             # design choice based on the pysc2 randomness details.
