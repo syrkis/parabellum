@@ -2,8 +2,8 @@ from .env import Environment, Scenario, scenarios, make_scenario, State
 from .vis import Visualizer, Skin
 from .map import terrain_fn
 from .gun import bullet_fn
-# from .aid import 0
-# from .run import 0
+# from .aid import aid
+# from .run import run
 
 __all__ = [
     "Environment",

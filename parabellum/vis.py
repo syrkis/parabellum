@@ -6,6 +6,7 @@ Visualizer for the Parabellum environment
 from functools import partial
 from typing import Optional, List, Tuple
 from contextlib import contextmanager
+import cv2
 
 # JAX and JAX-related imports
 import jax
@@ -28,18 +29,19 @@ import parabellum as pb
 
 
 # skin dataclass
+@dataclass
 class Skin:
-    basemap: chex.Array = jnp.zeros((1000, 1000))  # basemap of buildings
-    maskmap: chex.Array = jnp.zeros((1000, 1000))  # maskmap of buildings
-    fg: Tuple[int, int, int] = (255, 255, 255)
-    bg: Tuple[int, int, int] = (0, 0, 0)
+    # basemap: Array  # basemap of buildings
+    maskmap: Array  # maskmap of buildings
+    bg: Tuple[int, int, int] = (255, 255, 255)
+    fg: Tuple[int, int, int] = (0, 0, 0)
     ally: Tuple[int, int, int]  = (0, 255, 0)
     enemy: Tuple[int, int, int]  = (255, 0, 0)
     pad: int  = 100
-    size: int  = 1000
+    size: int  = 1000  # excluding padding
     fps: int = 24
-    map_size: int = 1000   # size of the map in Env
     vis_size: int = 1000   # size of the map in Vis (exluding padding)
+    scale: Optional[float] = None
 
 
 class Visualizer(SMAXVisualizer):
@@ -51,13 +53,15 @@ class Visualizer(SMAXVisualizer):
         self.state_seq = state_seq
         self.image = image_fn(skin)
         self.skin = skin
+        self.skin.scale = self.skin.size / env.map_width  # assumes square map
         self.env = env
+
 
     def animate(self, save_fname: Optional[str] = "output/parabellum", view=None):
         expanded_state_seq, expanded_action_seq = expand_fn(self.env, self.state_seq, self.action_seq)
         state_seq_seq, action_seq_seq = unbatch_fn(expanded_state_seq, expanded_action_seq)
         for idx, (state_seq, action_seq) in enumerate(zip(state_seq_seq, action_seq_seq)):
-            animate_fn(self.env, self.skin, self.image, state_seq, action_seq, f"{save_fname}_{idx}.gif")
+            animate_fn(self.env, self.skin, self.image, state_seq, action_seq, f"{save_fname}_{idx}.mp4")
 
 
 # functions
@@ -66,7 +70,8 @@ def animate_fn(env, skin, image, state_seq, action_seq, save_fname):
     frames = []
     for idx, (state_tup, action) in enumerate(zip(state_seq, action_seq)):
         frames += [frame_fn(env, skin, image, state_tup[1], action, idx)]
-    ImageSequenceClip(frames, fps=skin.fps).write_gif(save_fname, fps=skin.fps)
+    # ImageSequenceClip(frames, fps=skin.fps).write_gif(save_fname, fps=skin.fps)
+    ImageSequenceClip(frames, fps=skin.fps).write_videofile(save_fname, fps=skin.fps)
     pygame.quit()
 
 
@@ -91,15 +96,18 @@ def frame_fn(env, skin, image, state: pb.State, action: Array, idx: int) -> np.n
 
     return transform_frame(env, skin, frame)
 
+
 def render_background(env, skin, image, frame, state, action):
-    coords = (skin.pad, skin.pad, skin.size, skin.size)
-    frame.fill(skin.bg)  # clear the frame
+    coords = (skin.pad-5, skin.pad-5, skin.size+10, skin.size+10)
+    frame.fill(skin.bg)
     frame.blit(image, coords)
-    pygame.draw.rect(frame, skin.fg, coords, 2)
+    pygame.draw.rect(frame, skin.fg, coords, 3)
     return frame
+
 
 def render_action(env, skin, image, frame, state, action):
     return frame
+
 
 def render_bullet(env, skin, image, frame, state, action):
     return frame
@@ -107,13 +115,13 @@ def render_bullet(env, skin, image, frame, state, action):
 def render_agents(env, skin, image, frame, state, action):
     units = state.unit_positions, state.unit_teams, state.unit_types, state.unit_health
     for idx, (pos, team, kind, health) in enumerate(zip(*units)):
-        pos = tuple((pos).astype(int) + skin.pad)
+        pos = tuple((pos * skin.scale).astype(int) + skin.pad)
         # draw the agent
         if health > 0:
             unit_size = env.unit_type_radiuses[kind]
-            radius = float(jnp.ceil((unit_size)).astype(int) + 1)
-            pygame.draw.circle(frame, skin.fg, pos, radius)
+            radius = float(jnp.ceil((unit_size * skin.scale)).astype(int) + 1)
             pygame.draw.circle(frame, skin.fg, pos, radius, 1)
+            pygame.draw.circle(frame, skin.bg, pos, radius + 1, 1)
     return frame
 
 
@@ -122,10 +130,12 @@ def text_fn(text):
     return pygame.transform.rotate(text, 180)
 
 
-def image_fn(skin: Skin):  # TODO: fix
+def image_fn(skin: Skin):  # TODO:
     """Create an image for background (basemap or maskmap)"""
-    image = np.zeros((skin.size, skin.size, 3), dtype=np.uint8)
-    image[skin.maskmap == 1] = skin.fg
+    motif = cv2.resize(np.array(skin.maskmap.T), (skin.size, skin.size), interpolation=cv2.INTER_LANCZOS4).astype(np.uint8)
+    motif = (motif > 0).astype(np.uint8)
+    image = np.zeros((skin.size, skin.size, 3), dtype=np.uint8) + skin.bg
+    image[motif == 1] = skin.fg
     image = pygame.surfarray.make_surface(image)
     image = pygame.transform.scale(image, (skin.size, skin.size))
     return image

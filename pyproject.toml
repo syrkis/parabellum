@@ -28,6 +28,7 @@ ipykernel = "^6.29.5"
 folium = "^0.17.0"
 pandas = "^2.2.2"
 contextily = "^1.6.0"
+opencv-python = "^4.10.0.84"
 
 [tool.poetry.group.docs]
 optional = true
