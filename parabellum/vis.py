@@ -5,8 +5,8 @@ Visualizer for the Parabellum environment
 # Standard library imports
 from functools import partial
 from typing import Optional, List, Tuple
-from contextlib import contextmanager
 import cv2
+from PIL import Image
 
 # JAX and JAX-related imports
 import jax
@@ -21,7 +21,7 @@ from jaxmarl.viz.visualizer import SMAXVisualizer
 # Third-party imports
 import numpy as np
 import pygame
-from moviepy.editor import ImageSequenceClip
+import cv2
 from tqdm import tqdm
 
 # Local imports
@@ -70,8 +70,12 @@ def animate_fn(env, skin, image, state_seq, action_seq, save_fname):
     frames = []
     for idx, (state_tup, action) in enumerate(zip(state_seq, action_seq)):
         frames += [frame_fn(env, skin, image, state_tup[1], action, idx)]
-    # ImageSequenceClip(frames, fps=skin.fps).write_gif(save_fname, fps=skin.fps)
-    ImageSequenceClip(frames, fps=skin.fps).write_videofile(save_fname, fps=skin.fps)
+    # use cv2 to write frames to video
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore
+    out = cv2.VideoWriter(save_fname, fourcc, skin.fps, (skin.size + skin.pad * 2, skin.size + skin.pad * 2))
+    for frame in frames:
+        out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
+    out.release()
     pygame.quit()
 
 
