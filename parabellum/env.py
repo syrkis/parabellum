@@ -52,11 +52,20 @@ scenarios = {
 }
 
 
-def make_scenario(place, terrain_raster, num_allies=9, num_enemies=10):
-    """Create a scenario"""
-    num_agents = num_allies + num_enemies
-    unit_types = jnp.zeros((num_agents,)).astype(jnp.uint8)
-    return Scenario(place, terrain_raster, unit_types, num_allies, num_enemies)
+def make_scenario(place, terrain_raster, allies_type, n_allies, enemies_type, n_enemies):
+    if type(allies_type) == int:
+        allies = [allies_type] * n_allies
+    else:
+        assert(len(allies_type) == n_allies)
+        allies = allies_type
+        
+    if type(enemies_type) == int:
+        enemies = [enemies_type] * n_enemies
+    else:
+        assert(len(enemies_type) == n_enemies)
+        enemies = enemies_type
+    unit_types = jnp.array(allies + enemies, dtype=jnp.uint8)
+    return Scenario(place, terrain_raster, unit_types, n_allies, n_enemies)
 
 
 def spawn_fn(pool, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
