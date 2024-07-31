@@ -36,7 +36,7 @@ def rasterize_geometry(gdf: gpd.GeoDataFrame, size: int) -> jnp.ndarray:
     w, s, e, n = gdf.total_bounds
     transform = rasterio.transform.from_bounds(w, s, e, n, size, size)
     raster = features.rasterize(gdf.geometry, out_shape=(size, size), transform=transform)
-    return jnp.array(jnp.rot90(raster, 2)).astype(jnp.uint8)
+    return jnp.array(jnp.flip(raster, 0) ).astype(jnp.uint8)
 
 def terrain_fn(place: str, size: int = 1000) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Returns a rasterized map of buildings for a given location."""
@@ -59,10 +59,14 @@ def get_basemap(place: str, size: int = 1000) -> jnp.ndarray:
 
 if __name__ == "__main__":
     import seaborn as sns
-    place = "Thun, Switzerland"
+    place = "Cauvicourt, 14190, France"
     mask, base = terrain_fn(place)
 
     fig, ax = plt.subplots(1, 2, figsize=(10, 5))
     ax[0].imshow(mask) # type: ignore
     ax[1].imshow(base) # type: ignore
     plt.show()
+
+
+
+
