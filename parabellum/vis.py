@@ -56,7 +56,6 @@ class Visualizer(SMAXVisualizer):
         self.skin.scale = self.skin.size / env.map_width  # assumes square map
         self.env = env
 
-
     def animate(self, save_fname: Optional[str] = "output/parabellum", view=None):
         expanded_state_seq, expanded_action_seq = expand_fn(self.env, self.state_seq, self.action_seq)
         state_seq_seq, action_seq_seq = unbatch_fn(expanded_state_seq, expanded_action_seq)
@@ -86,7 +85,8 @@ def init_frame(env, skin, image, state: pb.State, action: Array, idx: int) -> py
 
 
 def transform_frame(env, skin, frame):
-    frame = np.rot90(pygame.surfarray.pixels3d(frame).swapaxes(0, 1), 2)
+    #frame = np.rot90(pygame.surfarray.pixels3d(frame).swapaxes(0, 1), 2)
+    frame = np.flip(pygame.surfarray.pixels3d(frame).swapaxes(0, 1), 0)
     return frame
 
 
@@ -136,7 +136,7 @@ def text_fn(text):
 
 def image_fn(skin: Skin):  # TODO:
     """Create an image for background (basemap or maskmap)"""
-    motif = cv2.resize(np.array(skin.maskmap.T), (skin.size, skin.size), interpolation=cv2.INTER_LANCZOS4).astype(np.uint8)
+    motif = cv2.resize(np.array(skin.maskmap.T), (skin.size, skin.size), interpolation=cv2.INTER_NEAREST).astype(np.uint8)
     motif = (motif > 0).astype(np.uint8)
     image = np.zeros((skin.size, skin.size, 3), dtype=np.uint8) + skin.bg
     image[motif == 1] = skin.fg

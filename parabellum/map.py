@@ -54,7 +54,7 @@ def get_basemap(place: str, size: int = 1000) -> jnp.ndarray:
     # get the middle size x size square
     basemap = basemap[(basemap.shape[0] - size) // 2:(basemap.shape[0] + size) // 2,
                         (basemap.shape[1] - size) // 2:(basemap.shape[1] + size) // 2]
-    return jnp.array(jnp.rot90(basemap, 2)).astype(jnp.uint8)
+    return basemap # jnp.array(jnp.rot90(basemap, 2)).astype(jnp.uint8)
 
 
 if __name__ == "__main__":
