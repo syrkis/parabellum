@@ -6,3 +6,4 @@ dist/
 cache/
 pyrightconfig.json
 .venv
+output
