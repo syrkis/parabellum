@@ -19,6 +19,7 @@ class Scenario:
 
     place: str
     terrain_raster: jnp.ndarray
+    unit_starting_sectors: jnp.ndarray
     unit_types: chex.Array
     num_allies: int
     num_enemies: int
@@ -45,6 +46,7 @@ scenarios = {
     "default": Scenario(
         "Identity Town",
         jnp.eye(64, dtype=jnp.uint8),
+        jnp.array([[0, 0, 0.2, 0.2], [0.7,0.7,0.2,0.2]]),
         jnp.zeros((19,), dtype=jnp.uint8),
         9,
         10,
@@ -52,7 +54,7 @@ scenarios = {
 }
 
 
-def make_scenario(place, terrain_raster, allies_type, n_allies, enemies_type, n_enemies):
+def make_scenario(place, terrain_raster, unit_starting_sectors, allies_type, n_allies, enemies_type, n_enemies):
     if type(allies_type) == int:
         allies = [allies_type] * n_allies
     else:
@@ -65,7 +67,7 @@ def make_scenario(place, terrain_raster, allies_type, n_allies, enemies_type, n_
         assert(len(enemies_type) == n_enemies)
         enemies = enemies_type
     unit_types = jnp.array(allies + enemies, dtype=jnp.uint8)
-    return Scenario(place, terrain_raster, unit_types, n_allies, n_enemies)
+    return Scenario(place, terrain_raster, unit_starting_sectors, unit_types, n_allies, n_enemies)
 
 
 def spawn_fn(pool, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
@@ -90,12 +92,23 @@ def sector_fn(terrain: jnp.ndarray, sector_id: int):
     return jnp.nonzero(sector), offset
 
 
+def sector_fn(terrain: jnp.ndarray, sector: jnp.ndarray):
+    """return sector slice of terrain"""
+    width, height = terrain.shape
+    coordx, coordy = int(sector[0] * width), int(sector[1] * height)
+    sector = terrain[coordy : coordy + int(sector[3] * height), coordx : coordx + int(sector[2] * width)] == 0
+    offset = jnp.array([coordx, coordy])
+    # sector is jnp.nonzero
+    return jnp.nonzero(sector.T), offset
+
+
 class Environment(SMAX):
     def __init__(self, scenario: Scenario, **kwargs):
         map_height, map_width = scenario.terrain_raster.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
         super(Environment, self).__init__(**args, walls_cause_death=False, **kwargs)
         self.terrain_raster = scenario.terrain_raster
+        self.unit_starting_sectors = scenario.unit_starting_sectors
         # self.unit_type_names = ["tinker", "tailor", "soldier", "spy"]
         # self.unit_type_health = jnp.array([100, 100, 100, 100], dtype=jnp.float32)
         # self.unit_type_damage = jnp.array([10, 10, 10, 10], dtype=jnp.float32)
@@ -104,15 +117,15 @@ class Environment(SMAX):
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness = 1: state  # overwrite push units
-        self.top_sector, self.top_sector_offset = sector_fn(self.terrain_raster, 0)
-        self.low_sector, self.low_sector_offset = sector_fn(self.terrain_raster, 24)
+        self.team0_sector, self.team0_sector_offset = sector_fn(self.terrain_raster, self.unit_starting_sectors[0]) # sector_fn(self.terrain_raster, 0)
+        self.team1_sector, self.team1_sector_offset = sector_fn(self.terrain_raster, self.unit_starting_sectors[1]) # sector_fn(self.terrain_raster, 24)
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
         ally_key, enemy_key = jax.random.split(rng)
-        team_0_start = spawn_fn(self.top_sector, self.top_sector_offset, self.num_allies, ally_key)
-        team_1_start = spawn_fn(self.low_sector, self.low_sector_offset, self.num_enemies, enemy_key)
+        team_0_start = spawn_fn(self.team0_sector, self.team0_sector_offset, self.num_allies, ally_key)
+        team_1_start = spawn_fn(self.team1_sector, self.team1_sector_offset, self.num_enemies, enemy_key)
         unit_positions = jnp.concatenate([team_0_start, team_1_start])
         unit_teams = jnp.zeros((self.num_agents,))
         unit_teams = unit_teams.at[self.num_allies :].set(1)
@@ -407,8 +420,8 @@ if __name__ == "__main__":
     obs, state = vmap(env.reset)(reset_key)
     state_seq = []
 
-    #print(state.unit_positions)
-    #exit()
+    print(state.unit_positions)
+    exit()
 
     for i in range(10):
         rng, act_rng, step_rng = random.split(rng, 3)
