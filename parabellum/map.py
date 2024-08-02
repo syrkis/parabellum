@@ -14,6 +14,8 @@ import rasterio.transform
 from typing import Optional, Tuple
 from geopy.location import Location
 from shapely.geometry import Point
+import os
+import pickle 
 
 # constants
 geolocator = Nominatim(user_agent="parabellum")
@@ -38,13 +40,36 @@ def rasterize_geometry(gdf: gpd.GeoDataFrame, size: int) -> jnp.ndarray:
     raster = features.rasterize(gdf.geometry, out_shape=(size, size), transform=transform)
     return jnp.array(jnp.flip(raster, 0) ).astype(jnp.uint8)
 
+# +
+def get_from_cache(place, size):
+    if os.path.exists("./cache"):
+        name = str(hash((place, size))) + ".pk"
+        if os.path.exists("./cache/" + name):
+            with open("./cache/" + name, "rb") as f:
+                (mask, base) = pickle.load(f)
+            return (mask, base.astype(jnp.int64))
+    return (None, None)
+    
+def save_in_cache(place, size, mask, base):
+    if not os.path.exists("./cache"):
+        os.makedirs("./cache")
+    name = str(hash((place, size))) + ".pk"
+    with open("./cache/" + name, "wb") as f:
+        pickle.dump((mask, base), f)
+
 def terrain_fn(place: str, size: int = 1000) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Returns a rasterized map of buildings for a given location."""
-    point = get_location(place)
-    gdf = get_building_geometry(point, size)
-    mask = rasterize_geometry(gdf, size)
-    base = get_basemap(place, size)
+    mask, base = get_from_cache(place, size)
+    if mask is None:
+        point = get_location(place)
+        gdf = get_building_geometry(point, size)
+        mask = rasterize_geometry(gdf, size)
+        base = get_basemap(place, size)
+        save_in_cache(place, size, mask, base)
     return mask, base
+
+
+# -
 
 def get_basemap(place: str, size: int = 1000) -> jnp.ndarray:
     """Returns a basemap for a given place as a JAX array."""
@@ -58,13 +83,14 @@ def get_basemap(place: str, size: int = 1000) -> jnp.ndarray:
 
 
 if __name__ == "__main__":
-    import seaborn as sns
     place = "Cauvicourt, 14190, France"
-    mask, base = terrain_fn(place)
-
-    fig, ax = plt.subplots(1, 2, figsize=(10, 5))
-    ax[0].imshow(mask) # type: ignore
+    mask, base = terrain_fn(place, 500)
+    
+    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
+    ax[0].imshow(jnp.flip(mask,0)) # type: ignore
     ax[1].imshow(base) # type: ignore
+    ax[2].imshow(base) # type: ignore
+    ax[2].imshow(jnp.flip(mask,0), alpha=jnp.flip(mask,0)) # type: ignore
     plt.show()
 
 
