@@ -57,15 +57,17 @@ def save_in_cache(place, size, mask, base):
     with open("./cache/" + name, "wb") as f:
         pickle.dump((mask, base), f)
 
-def terrain_fn(place: str, size: int = 1000) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def terrain_fn(place: str, size: int = 1000, with_cache: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray]:
     """Returns a rasterized map of buildings for a given location."""
-    mask, base = get_from_cache(place, size)
-    if mask is None:
+    if with_cache:
+        mask, base = get_from_cache(place, size)
+    if not with_cache or mask is None:
         point = get_location(place)
         gdf = get_building_geometry(point, size)
         mask = rasterize_geometry(gdf, size)
         base = get_basemap(place, size)
-        save_in_cache(place, size, mask, base)
+        if with_cache:
+            save_in_cache(place, size, mask, base)
     return mask, base
 
 
