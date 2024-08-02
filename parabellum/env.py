@@ -100,6 +100,7 @@ class Environment(SMAX):
         # self.unit_type_health = jnp.array([100, 100, 100, 100], dtype=jnp.float32)
         # self.unit_type_damage = jnp.array([10, 10, 10, 10], dtype=jnp.float32)
         self.scenario = scenario
+        self.unit_type_velocities=jnp.array([3.15, 2.25, 4.13, 3.15, 4.13, 3.15])/2.5
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness = 1: state  # overwrite push units
@@ -406,8 +407,8 @@ if __name__ == "__main__":
     obs, state = vmap(env.reset)(reset_key)
     state_seq = []
 
-    print(state.unit_positions)
-    exit()
+    #print(state.unit_positions)
+    #exit()
 
     for i in range(10):
         rng, act_rng, step_rng = random.split(rng, 3)
