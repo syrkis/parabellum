@@ -188,15 +188,15 @@ class Environment(SMAX):
 
         def raster_crossing(pos, new_pos):
             pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
-            raster = self.terrain_raster
-            axis = jnp.argmax(jnp.abs(new_pos - pos), axis=-1)
-            minimum = jnp.minimum(pos[axis], new_pos[axis]).squeeze()
-            maximum = jnp.maximum(pos[axis], new_pos[axis]).squeeze()
-            segment = jnp.where(axis == 0, raster[pos[1]], raster.T[pos[0]])
-            segment = jnp.where(jnp.arange(segment.shape[0]) >= minimum, segment, 0)
-            segment = jnp.where(jnp.arange(segment.shape[0]) <= maximum, segment, 0)
-            return jnp.any(segment)
-
+            raster = jnp.copy(self.terrain_raster)
+            minimum = jnp.minimum(pos, new_pos)
+            maximum = jnp.maximum(pos, new_pos)
+            raster = jnp.where(jnp.arange(raster.shape[0]) >= minimum[0], raster, 0)
+            raster = jnp.where(jnp.arange(raster.shape[0]) <= maximum[0], raster, 0)
+            raster = jnp.where(jnp.arange(raster.shape[1]) >= minimum[1], raster.T, 0).T
+            raster = jnp.where(jnp.arange(raster.shape[1]) <= maximum[1], raster.T, 0).T
+            return jnp.any(raster)
+        
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
             # The velocities below are for diagonal directions
@@ -218,11 +218,7 @@ class Environment(SMAX):
 
             #######################################################################
             ############################################ avoid going into obstacles
-            """ obs = self.obstacle_coords
-            obs_end = obs + self.obstacle_deltas
-            inters = jnp.any(intersect_fn(pos, new_pos, obs, obs_end)) """
             clash = raster_crossing(pos, new_pos)
-            # flag = jnp.logical_or(inters, rastersects)
             new_pos = jnp.where(clash, pos, new_pos)
 
             #######################################################################
@@ -335,39 +331,15 @@ class Environment(SMAX):
 
         # units push each other
         new_pos = self._our_push_units_away(pos, state.unit_types)
-
-        # avoid going into obstacles after being pushed
-
-        bondaries_coords = jnp.array(
-            [[0, 0], [0, 0], [self.map_width, 0], [0, self.map_height]]
-        )
-        bondaries_deltas = jnp.array(
-            [
-                [self.map_width, 0],
-                [0, self.map_height],
-                [0, self.map_height],
-                [self.map_width, 0],
-            ]
-        )
-        """ obstacle_coords = jnp.concatenate(
-            [self.obstacle_coords, bondaries_coords]
-        )  # add the map boundaries to the obstacles to avoid
-        obstacle_deltas = jnp.concatenate(
-            [self.obstacle_deltas, bondaries_deltas]
-        )  # add the map boundaries to the obstacles to avoid
-        obst_start = obstacle_coords
-        obst_end = obst_start + obstacle_deltas """
-
-        def check_obstacles(pos, new_pos, obst_start, obst_end):
-            intersects = jnp.any(intersect_fn(pos, new_pos, obst_start, obst_end))
-            rastersect = raster_crossing(pos, new_pos)
-            flag = jnp.logical_or(intersects, rastersect)
-            return jnp.where(flag, pos, new_pos)
-
-        """ pos = jax.vmap(check_obstacles, in_axes=(0, 0, None, None))(
-            pos, new_pos, obst_start, obst_end
-        ) """
-
+        #a = new_pos + pos 
+        clash = jax.vmap(raster_crossing)(pos, new_pos)
+        #clash = raster_crossing(new_pos, new_pos)
+        pos = jax.vmap(jnp.where)(clash, pos, new_pos)
+        
+        
+        # avoid going out of bounds
+        #pos = jnp.maximum(jnp.minimum(pos, jnp.array([self.map_width, self.map_height])),jnp.zeros((2,)),)
+        
         # Multiple enemies can attack the same unit.
         # We have `(health_diff, attacked_idx)` pairs.
         # `jax.lax.scatter_add` aggregates these exactly
@@ -409,7 +381,6 @@ class Environment(SMAX):
             unit_weapon_cooldowns=unit_weapon_cooldowns,
         )
         return state
-
 
 if __name__ == "__main__":
     n_envs = 4
