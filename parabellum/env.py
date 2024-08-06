@@ -331,14 +331,10 @@ class Environment(SMAX):
 
         # units push each other
         new_pos = self._our_push_units_away(pos, state.unit_types)
-        #a = new_pos + pos 
         clash = jax.vmap(raster_crossing)(pos, new_pos)
-        #clash = raster_crossing(new_pos, new_pos)
         pos = jax.vmap(jnp.where)(clash, pos, new_pos)
-        
-        
         # avoid going out of bounds
-        #pos = jnp.maximum(jnp.minimum(pos, jnp.array([self.map_width, self.map_height])),jnp.zeros((2,)),)
+        pos = jnp.maximum(jnp.minimum(pos, jnp.array([self.map_width, self.map_height])),jnp.zeros((2,)),)
         
         # Multiple enemies can attack the same unit.
         # We have `(health_diff, attacked_idx)` pairs.
@@ -381,6 +377,7 @@ class Environment(SMAX):
             unit_weapon_cooldowns=unit_weapon_cooldowns,
         )
         return state
+
 
 if __name__ == "__main__":
     n_envs = 4
