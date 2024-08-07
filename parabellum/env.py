@@ -19,6 +19,7 @@ class Scenario:
 
     place: str
     terrain_raster: jnp.ndarray
+    unit_starting_sectors: jnp.ndarray
     unit_types: chex.Array
     num_allies: int
     num_enemies: int
@@ -45,6 +46,7 @@ scenarios = {
     "default": Scenario(
         "Identity Town",
         jnp.eye(64, dtype=jnp.uint8),
+        jnp.array([[0, 0, 0.2, 0.2], [0.7,0.7,0.2,0.2]]),
         jnp.zeros((19,), dtype=jnp.uint8),
         9,
         10,
@@ -52,11 +54,20 @@ scenarios = {
 }
 
 
-def make_scenario(place, terrain_raster, num_allies=9, num_enemies=10):
-    """Create a scenario"""
-    num_agents = num_allies + num_enemies
-    unit_types = jnp.zeros((num_agents,)).astype(jnp.uint8)
-    return Scenario(place, terrain_raster, unit_types, num_allies, num_enemies)
+def make_scenario(place, terrain_raster, unit_starting_sectors, allies_type, n_allies, enemies_type, n_enemies):
+    if type(allies_type) == int:
+        allies = [allies_type] * n_allies
+    else:
+        assert(len(allies_type) == n_allies)
+        allies = allies_type
+        
+    if type(enemies_type) == int:
+        enemies = [enemies_type] * n_enemies
+    else:
+        assert(len(enemies_type) == n_enemies)
+        enemies = enemies_type
+    unit_types = jnp.array(allies + enemies, dtype=jnp.uint8)
+    return Scenario(place, terrain_raster, unit_starting_sectors, unit_types, n_allies, n_enemies)
 
 
 def spawn_fn(pool, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
@@ -81,29 +92,41 @@ def sector_fn(terrain: jnp.ndarray, sector_id: int):
     return jnp.nonzero(sector), offset
 
 
+def sector_fn(terrain: jnp.ndarray, sector: jnp.ndarray):
+    """return sector slice of terrain"""
+    width, height = terrain.shape
+    coordx, coordy = int(sector[0] * width), int(sector[1] * height)
+    sector = terrain[coordy : coordy + int(sector[3] * height), coordx : coordx + int(sector[2] * width)] == 0
+    offset = jnp.array([coordx, coordy])
+    # sector is jnp.nonzero
+    return jnp.nonzero(sector.T), offset
+
+
 class Environment(SMAX):
     def __init__(self, scenario: Scenario, **kwargs):
         map_height, map_width = scenario.terrain_raster.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
         super(Environment, self).__init__(**args, walls_cause_death=False, **kwargs)
         self.terrain_raster = scenario.terrain_raster
+        self.unit_starting_sectors = scenario.unit_starting_sectors
         # self.unit_type_names = ["tinker", "tailor", "soldier", "spy"]
         # self.unit_type_health = jnp.array([100, 100, 100, 100], dtype=jnp.float32)
         # self.unit_type_damage = jnp.array([10, 10, 10, 10], dtype=jnp.float32)
         self.scenario = scenario
+        self.unit_type_velocities=jnp.array([3.15, 2.25, 4.13, 3.15, 4.13, 3.15])/2.5
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness = 1: state  # overwrite push units
-        self.top_sector, self.top_sector_offset = sector_fn(self.terrain_raster, 0)
-        self.low_sector, self.low_sector_offset = sector_fn(self.terrain_raster, 24)
+        self.team0_sector, self.team0_sector_offset = sector_fn(self.terrain_raster, self.unit_starting_sectors[0]) # sector_fn(self.terrain_raster, 0)
+        self.team1_sector, self.team1_sector_offset = sector_fn(self.terrain_raster, self.unit_starting_sectors[1]) # sector_fn(self.terrain_raster, 24)
 
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
         ally_key, enemy_key = jax.random.split(rng)
-        team_0_start = spawn_fn(self.top_sector, self.top_sector_offset, self.num_allies, ally_key)
-        team_1_start = spawn_fn(self.low_sector, self.low_sector_offset, self.num_enemies, enemy_key)
+        team_0_start = spawn_fn(self.team0_sector, self.team0_sector_offset, self.num_allies, ally_key)
+        team_1_start = spawn_fn(self.team1_sector, self.team1_sector_offset, self.num_enemies, enemy_key)
         unit_positions = jnp.concatenate([team_0_start, team_1_start])
         unit_teams = jnp.zeros((self.num_agents,))
         unit_teams = unit_teams.at[self.num_allies :].set(1)
@@ -167,15 +190,15 @@ class Environment(SMAX):
 
         def raster_crossing(pos, new_pos):
             pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
-            raster = self.terrain_raster
-            axis = jnp.argmax(jnp.abs(new_pos - pos), axis=-1)
-            minimum = jnp.minimum(pos[axis], new_pos[axis]).squeeze()
-            maximum = jnp.maximum(pos[axis], new_pos[axis]).squeeze()
-            segment = jnp.where(axis == 0, raster[pos[1]], raster.T[pos[0]])
-            segment = jnp.where(jnp.arange(segment.shape[0]) >= minimum, segment, 0)
-            segment = jnp.where(jnp.arange(segment.shape[0]) <= maximum, segment, 0)
-            return jnp.any(segment)
-
+            raster = jnp.copy(self.terrain_raster)
+            minimum = jnp.minimum(pos, new_pos)
+            maximum = jnp.maximum(pos, new_pos)
+            raster = jnp.where(jnp.arange(raster.shape[0]) >= minimum[0], raster, 0)
+            raster = jnp.where(jnp.arange(raster.shape[0]) <= maximum[0], raster, 0)
+            raster = jnp.where(jnp.arange(raster.shape[1]) >= minimum[1], raster.T, 0).T
+            raster = jnp.where(jnp.arange(raster.shape[1]) <= maximum[1], raster.T, 0).T
+            return jnp.any(raster)
+        
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
             # The velocities below are for diagonal directions
@@ -197,11 +220,7 @@ class Environment(SMAX):
 
             #######################################################################
             ############################################ avoid going into obstacles
-            """ obs = self.obstacle_coords
-            obs_end = obs + self.obstacle_deltas
-            inters = jnp.any(intersect_fn(pos, new_pos, obs, obs_end)) """
             clash = raster_crossing(pos, new_pos)
-            # flag = jnp.logical_or(inters, rastersects)
             new_pos = jnp.where(clash, pos, new_pos)
 
             #######################################################################
@@ -314,39 +333,11 @@ class Environment(SMAX):
 
         # units push each other
         new_pos = self._our_push_units_away(pos, state.unit_types)
-
-        # avoid going into obstacles after being pushed
-
-        bondaries_coords = jnp.array(
-            [[0, 0], [0, 0], [self.map_width, 0], [0, self.map_height]]
-        )
-        bondaries_deltas = jnp.array(
-            [
-                [self.map_width, 0],
-                [0, self.map_height],
-                [0, self.map_height],
-                [self.map_width, 0],
-            ]
-        )
-        """ obstacle_coords = jnp.concatenate(
-            [self.obstacle_coords, bondaries_coords]
-        )  # add the map boundaries to the obstacles to avoid
-        obstacle_deltas = jnp.concatenate(
-            [self.obstacle_deltas, bondaries_deltas]
-        )  # add the map boundaries to the obstacles to avoid
-        obst_start = obstacle_coords
-        obst_end = obst_start + obstacle_deltas """
-
-        def check_obstacles(pos, new_pos, obst_start, obst_end):
-            intersects = jnp.any(intersect_fn(pos, new_pos, obst_start, obst_end))
-            rastersect = raster_crossing(pos, new_pos)
-            flag = jnp.logical_or(intersects, rastersect)
-            return jnp.where(flag, pos, new_pos)
-
-        """ pos = jax.vmap(check_obstacles, in_axes=(0, 0, None, None))(
-            pos, new_pos, obst_start, obst_end
-        ) """
-
+        clash = jax.vmap(raster_crossing)(pos, new_pos)
+        pos = jax.vmap(jnp.where)(clash, pos, new_pos)
+        # avoid going out of bounds
+        pos = jnp.maximum(jnp.minimum(pos, jnp.array([self.map_width, self.map_height])),jnp.zeros((2,)),)
+        
         # Multiple enemies can attack the same unit.
         # We have `(health_diff, attacked_idx)` pairs.
         # `jax.lax.scatter_add` aggregates these exactly
