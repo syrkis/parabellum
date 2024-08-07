@@ -60,7 +60,7 @@ def make_scenario(place, terrain_raster, unit_starting_sectors, allies_type, n_a
     else:
         assert(len(allies_type) == n_allies)
         allies = allies_type
-        
+
     if type(enemies_type) == int:
         enemies = [enemies_type] * n_enemies
     else:
@@ -152,10 +152,10 @@ class Environment(SMAX):
         # obs["world_state"] = jax.lax.stop_gradient(world_state)
         return obs, state
 
-    def step_env(self, state: State, action: Array):
-        obs, state, rewards, dones, infos = super().step_env(state, action)
+    def step_env(self, rng, state: State, action: Array):
+        obs, state, rewards, dones, infos = super().step_env(rng, state, action)
         # delete world_state from obs
-        obs.pop("world_state")
+        # obs.pop("world_state")
         return obs, state, rewards, dones, infos
 
     def _our_push_units_away(
@@ -203,7 +203,7 @@ class Environment(SMAX):
             raster = jnp.where(jnp.arange(raster.shape[1]) >= minimum[1], raster.T, 0).T
             raster = jnp.where(jnp.arange(raster.shape[1]) <= maximum[1], raster.T, 0).T
             return jnp.any(raster)
-        
+
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
             # The velocities below are for diagonal directions
@@ -342,7 +342,7 @@ class Environment(SMAX):
         pos = jax.vmap(jnp.where)(clash, pos, new_pos)
         # avoid going out of bounds
         pos = jnp.maximum(jnp.minimum(pos, jnp.array([self.map_width, self.map_height])),jnp.zeros((2,)),)
-        
+
         # Multiple enemies can attack the same unit.
         # We have `(health_diff, attacked_idx)` pairs.
         # `jax.lax.scatter_add` aggregates these exactly
