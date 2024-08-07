@@ -97,6 +97,7 @@ class Environment(SMAX):
         self.top_sector, self.top_sector_offset = sector_fn(self.terrain_raster, 0)
         self.low_sector, self.low_sector_offset = sector_fn(self.terrain_raster, 24)
 
+
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
@@ -125,8 +126,14 @@ class Environment(SMAX):
         state = self._push_units_away(state)  # type: ignore
         obs = self.get_obs(state)
         world_state = self.get_world_state(state)
-        obs["world_state"] = jax.lax.stop_gradient(world_state)
+        # obs["world_state"] = jax.lax.stop_gradient(world_state)
         return obs, state
+
+    def step_env(self, state: State, action: Array):
+        obs, state, rewards, dones, infos = super().step_env(state, action)
+        # delete world_state from obs
+        obs.pop("world_state")
+        return obs, state, rewards, dones, infos
 
     def _our_push_units_away(
         self, pos, unit_types, firmness: float = 1.0
