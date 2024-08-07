@@ -149,13 +149,13 @@ class Environment(SMAX):
         state = self._push_units_away(state)  # type: ignore
         obs = self.get_obs(state)
         world_state = self.get_world_state(state)
-        obs["world_state"] = jax.lax.stop_gradient(world_state)
+        # obs["world_state"] = jax.lax.stop_gradient(world_state)
         return obs, state
 
     def step_env(self, rng, state: State, action: Array):
         obs, state, rewards, dones, infos = super().step_env(rng, state, action)
         # delete world_state from obs
-        # obs.pop("world_state")
+        obs.pop("world_state")
         return obs, state, rewards, dones, infos
 
     def _our_push_units_away(
