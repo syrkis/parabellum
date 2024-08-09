@@ -82,14 +82,14 @@ def spawn_fn(pool, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
     return coords + noise + offset
 
 
-def sector_fn(terrain: jnp.ndarray, sector_id: int):
-    """return sector slice of terrain"""
-    width, height = terrain.shape
-    coordx, coordy = sector_id // 5 * width // 5, sector_id % 5 * height // 5
-    sector = terrain[coordx : coordx + width // 5, coordy : coordy + height // 5] == 0
-    offset = jnp.array([coordx, coordy])
-    # sector is jnp.nonzero
-    return jnp.nonzero(sector), offset
+# def sector_fn(terrain: jnp.ndarray, sector_id: int):
+#     """return sector slice of terrain"""
+#     width, height = terrain.shape
+#     coordx, coordy = sector_id // 5 * width // 5, sector_id % 5 * height // 5
+#     sector = terrain[coordx : coordx + width // 5, coordy : coordy + height // 5] == 0
+#     offset = jnp.array([coordx, coordy])
+#     # sector is jnp.nonzero
+#     return jnp.nonzero(sector), offset
 
 
 def sector_fn(terrain: jnp.ndarray, sector: jnp.ndarray):
