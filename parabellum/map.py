@@ -1,100 +1,103 @@
-# map.py
-    # parabellum map functions
-# by: Noah Syrkis
+"""
+This module provides functions to retrieve a mask and image of a given place on Earth.
+Specifically, it provides functions to:
+    1. Get coordinates for a given place (get_coords)
+    2. Get building geometry for a given point and size (get_geometry)
+    3. Get a raster mask (0 is background and 1 is building) of a given place (get_raster)
+    4. Get a map image of a given place (get_image)
+"""
 
-# imports
-import jax.numpy as jnp
-from geopy.geocoders import Nominatim
-import geopandas as gpd
-import osmnx as ox
+# %% Imports
+import numpy as np
 import contextily as cx
-import matplotlib.pyplot as plt
-from rasterio import features
-import rasterio.transform
-from typing import Optional, Tuple
-from geopy.location import Location
+from pyproj import Transformer
+from typing import Tuple
+import geopandas as gpd
+from geopy.geocoders import Nominatim
+import jax.numpy as jnp
 from shapely.geometry import Point
-import os
-import pickle 
+import osmnx as ox
+from PIL import Image
+from rasterio import features
+import rasterio
 
-# constants
-geolocator = Nominatim(user_agent="parabellum")
+
+# %% Constants
 BUILDING_TAGS = {"building": True}
+geolocator = Nominatim(user_agent="parabellum")
+provider = cx.providers.OpenStreetMap.Mapnik  # type: ignore
+# cache dir is the parent directory of the current file (home file of pyproject.toml)
+# dio not use __file__ as this might be run in repl
 
-def get_location(place: str) -> Tuple[float, float]:
+
+# %% Functions
+def get_coords(place: str) -> Tuple[float, float]:
     """Get coordinates for a given place."""
-    coords: Optional[Location] = geolocator.geocode(place)  # type: ignore
-    if coords is None:
-        raise ValueError(f"Could not geocode the place: {place}")
-    return (coords.latitude, coords.longitude)
+    coords = geolocator.geocode(place)
+    assert coords is not None, f"Could not geocode the place: {place}"
+    return (coords.latitude, coords.longitude)  # type: ignore
 
-def get_building_geometry(point: Tuple[float, float], size: int) -> gpd.GeoDataFrame:
+
+def get_geometry(coord: Tuple[float, float], size: int) -> gpd.GeoDataFrame:
     """Get building geometry for a given point and size."""
-    geometry = ox.features_from_point(point, tags=BUILDING_TAGS, dist=size // 2)
-    return gpd.GeoDataFrame(geometry).set_crs("EPSG:4326")
+    geometry = gpd.GeoDataFrame(
+        geometry=[Point(coord[1], coord[0])], crs="EPSG:4326"
+    ).buffer(size / 111320)  # Approximate degrees for the given pixel size
+    return geometry
 
-def rasterize_geometry(gdf: gpd.GeoDataFrame, size: int) -> jnp.ndarray:
+
+def get_raster(place: str, size: int) -> jnp.ndarray:
     """Rasterize geometry and return as a JAX array."""
-    w, s, e, n = gdf.total_bounds
-    transform = rasterio.transform.from_bounds(w, s, e, n, size, size)
-    raster = features.rasterize(gdf.geometry, out_shape=(size, size), transform=transform)
-    return jnp.array(jnp.flip(raster, 0) ).astype(jnp.uint8)
-
-# +
-def get_from_cache(place, size):
-    if os.path.exists("./cache"):
-        name = str(hash((place, size))) + ".pk"
-        if os.path.exists("./cache/" + name):
-            with open("./cache/" + name, "rb") as f:
-                (mask, base) = pickle.load(f)
-            return (mask, base.astype(jnp.int64))
-    return (None, None)
-    
-def save_in_cache(place, size, mask, base):
-    if not os.path.exists("./cache"):
-        os.makedirs("./cache")
-    name = str(hash((place, size))) + ".pk"
-    with open("./cache/" + name, "wb") as f:
-        pickle.dump((mask, base), f)
-
-def terrain_fn(place: str, size: int = 1000, with_cache: bool = True) -> Tuple[jnp.ndarray, jnp.ndarray]:
-    """Returns a rasterized map of buildings for a given location."""
-    if with_cache:
-        mask, base = get_from_cache(place, size)
-    if not with_cache or mask is None:
-        point = get_location(place)
-        gdf = get_building_geometry(point, size)
-        mask = rasterize_geometry(gdf, size)
-        base = get_basemap(place, size)
-        if with_cache:
-            save_in_cache(place, size, mask, base)
-    return mask, base
+    coord = get_coords(place)
+    geom = ox.features_from_point(coord, tags=BUILDING_TAGS, dist=size // 2)
+    gdf = gpd.GeoDataFrame(geom).set_crs("EPSG:4326")
+    t = rasterio.transform.from_bounds(*gdf.total_bounds, size, size)  # type: ignore
+    raster = features.rasterize(geom.geometry, out_shape=(size, size), transform=t)
+    return jnp.array(raster)  # jnp.array(jnp.flip(raster, 0)).astype(jnp.uint8)
 
 
-# -
+def get_image(place: str, size: int = 1000):
+    """
+    Get a map image of the given place as a numpy array, where each pixel covers exactly one meter.
+    :param place: Name of the place to retrieve the map for
+    :param size: Size of the image in pixels (default 1000)
+    :return: Numpy array of shape (size, size, 3) representing the map image
+    """
+    lon, lat = get_coords(place)
+    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+    x, y = transformer.transform(lon, lat)
+    # Convert the center point to web mercator coordinates
 
-def get_basemap(place: str, size: int = 1000) -> jnp.ndarray:
-    """Returns a basemap for a given place as a JAX array."""
-    point = get_location(place)
-    gdf = get_building_geometry(point, size)
-    basemap, _ = cx.bounds2img(*gdf.total_bounds, ll=True)
-    # get the middle size x size square
-    basemap = basemap[(basemap.shape[0] - size) // 2:(basemap.shape[0] + size) // 2,
-                        (basemap.shape[1] - size) // 2:(basemap.shape[1] + size) // 2]
-    return basemap # jnp.array(jnp.rot90(basemap, 2)).astype(jnp.uint8)
+    # Calculate the extent (500 meters in each direction from the center)
+    extent = [x - 500, x + 500, y - 500, y + 500]
+
+    # Create a figure and axis
+    fig, ax = plt.subplots(figsize=(10, 10))
+
+    # Set the extent of the axis
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+
+    # Add the basemap
+    cx.add_basemap(ax, crs="EPSG:3857", source=provider, zoom=10)
+
+    # Remove axis ticks and labels
+    ax.set_axis_off()
+
+    return fig
 
 
-if __name__ == "__main__":
-    place = "Cauvicourt, 14190, France"
-    mask, base = terrain_fn(place, 500)
-    
-    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-    ax[0].imshow(jnp.flip(mask,0)) # type: ignore
-    ax[1].imshow(base) # type: ignore
-    ax[2].imshow(base) # type: ignore
-    ax[2].imshow(jnp.flip(mask,0), alpha=jnp.flip(mask,0)) # type: ignore
-    plt.show()
+# %% Test the functions
+import seaborn as sns
+import matplotlib.pyplot as plt
 
+place = "Copenhagen, Denmark"
 
+# raster = get_raster(place, size=3000)
+# sns.heatmap(1 - raster, cbar=False, square=True)
+# plt.show()
 
-
+# %% Test get_coords
+fig = get_image(place, size=3000)
+plt.show()
+# plt.imshow(image)

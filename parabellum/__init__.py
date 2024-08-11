@@ -1,11 +1,15 @@
 from .env import Environment, Scenario, scenarios, make_scenario, State
 from .vis import Visualizer, Skin
-from .map import terrain_fn
 from .gun import bullet_fn
-# from .aid import aid
+from . import vis
+from . import map
+from . import env
 # from .run import run
 
 __all__ = [
+    "env",
+    "map",
+    "vis",
     "Environment",
     "Scenario",
     "scenarios",
@@ -13,6 +17,5 @@ __all__ = [
     "State",
     "Visualizer",
     "Skin",
-    "terrain_fn",
     "bullet_fn",
 ]

@@ -21,7 +21,7 @@ bg = (0, 0, 0) if darkdetect.isDark() else (255, 255, 255)
 
 
 # types
-State = jaxmarl.environments.smax.smax_env.State # type: ignore
+State = jaxmarl.environments.smax.smax_env.State  # type: ignore
 Obs = Reward = Done = Action = Dict[str, jnp.ndarray]
 StateSeq = List[Tuple[jnp.ndarray, State, Action]]
 

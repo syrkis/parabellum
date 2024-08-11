@@ -7,3 +7,5 @@ cache/
 pyrightconfig.json
 .venv
 output
+parabellum/cache/
+.ruff_cache/

@@ -3,26 +3,19 @@ Visualizer for the Parabellum environment
 """
 
 # Standard library imports
-from functools import partial
-from typing import Optional, List, Tuple
+from typing import Optional, Tuple
 import cv2
-from PIL import Image
 
 # JAX and JAX-related imports
 import jax
 from chex import dataclass
-import chex
-from jax import vmap, tree_util, Array, jit
+from jax import vmap, Array
 import jax.numpy as jnp
-from jaxmarl.environments.multi_agent_env import MultiAgentEnv
-from jaxmarl.environments.smax import SMAX
 from jaxmarl.viz.visualizer import SMAXVisualizer
 
 # Third-party imports
 import numpy as np
 import pygame
-import cv2
-from tqdm import tqdm
 
 # Local imports
 import parabellum as pb
@@ -35,12 +28,12 @@ class Skin:
     maskmap: Array  # maskmap of buildings
     bg: Tuple[int, int, int] = (255, 255, 255)
     fg: Tuple[int, int, int] = (0, 0, 0)
-    ally: Tuple[int, int, int]  = (0, 255, 0)
-    enemy: Tuple[int, int, int]  = (255, 0, 0)
-    pad: int  = 100
-    size: int  = 1000  # excluding padding
+    ally: Tuple[int, int, int] = (0, 255, 0)
+    enemy: Tuple[int, int, int] = (255, 0, 0)
+    pad: int = 100
+    size: int = 1000  # excluding padding
     fps: int = 24
-    vis_size: int = 1000   # size of the map in Vis (exluding padding)
+    vis_size: int = 1000  # size of the map in Vis (exluding padding)
     scale: Optional[float] = None
 
 
@@ -57,10 +50,23 @@ class Visualizer(SMAXVisualizer):
         self.env = env
 
     def animate(self, save_fname: Optional[str] = "output/parabellum", view=None):
-        expanded_state_seq, expanded_action_seq = expand_fn(self.env, self.state_seq, self.action_seq)
-        state_seq_seq, action_seq_seq = unbatch_fn(expanded_state_seq, expanded_action_seq)
-        for idx, (state_seq, action_seq) in enumerate(zip(state_seq_seq, action_seq_seq)):
-            animate_fn(self.env, self.skin, self.image, state_seq, action_seq, f"{save_fname}_{idx}.mp4")
+        expanded_state_seq, expanded_action_seq = expand_fn(
+            self.env, self.state_seq, self.action_seq
+        )
+        state_seq_seq, action_seq_seq = unbatch_fn(
+            expanded_state_seq, expanded_action_seq
+        )
+        for idx, (state_seq, action_seq) in enumerate(
+            zip(state_seq_seq, action_seq_seq)
+        ):
+            animate_fn(
+                self.env,
+                self.skin,
+                self.image,
+                state_seq,
+                action_seq,
+                f"{save_fname}_{idx}.mp4",
+            )
 
 
 # functions
@@ -70,22 +76,29 @@ def animate_fn(env, skin, image, state_seq, action_seq, save_fname):
     for idx, (state_tup, action) in enumerate(zip(state_seq, action_seq)):
         frames += [frame_fn(env, skin, image, state_tup[1], action, idx)]
     # use cv2 to write frames to video
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # type: ignore
-    out = cv2.VideoWriter(save_fname, fourcc, skin.fps, (skin.size + skin.pad * 2, skin.size + skin.pad * 2))
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore
+    out = cv2.VideoWriter(
+        save_fname,
+        fourcc,
+        skin.fps,
+        (skin.size + skin.pad * 2, skin.size + skin.pad * 2),
+    )
     for frame in frames:
         out.write(cv2.cvtColor(frame, cv2.COLOR_RGB2BGR))
     out.release()
     pygame.quit()
 
 
-def init_frame(env, skin, image, state: pb.State, action: Array, idx: int) -> pygame.Surface:
+def init_frame(
+    env, skin, image, state: pb.State, action: Array, idx: int
+) -> pygame.Surface:
     dims = (skin.size + skin.pad * 2, skin.size + skin.pad * 2)
     frame = pygame.Surface(dims, pygame.SRCALPHA | pygame.HWSURFACE)
     return frame
 
 
 def transform_frame(env, skin, frame):
-    #frame = np.rot90(pygame.surfarray.pixels3d(frame).swapaxes(0, 1), 2)
+    # frame = np.rot90(pygame.surfarray.pixels3d(frame).swapaxes(0, 1), 2)
     frame = np.flip(pygame.surfarray.pixels3d(frame).swapaxes(0, 1), 0)
     return frame
 
@@ -102,7 +115,7 @@ def frame_fn(env, skin, image, state: pb.State, action: Array, idx: int) -> np.n
 
 
 def render_background(env, skin, image, frame, state, action):
-    coords = (skin.pad-5, skin.pad-5, skin.size+10, skin.size+10)
+    coords = (skin.pad - 5, skin.pad - 5, skin.size + 10, skin.size + 10)
     frame.fill(skin.bg)
     frame.blit(image, coords)
     pygame.draw.rect(frame, skin.fg, coords, 3)
@@ -115,6 +128,7 @@ def render_action(env, skin, image, frame, state, action):
 
 def render_bullet(env, skin, image, frame, state, action):
     return frame
+
 
 def render_agents(env, skin, image, frame, state, action):
     units = state.unit_positions, state.unit_teams, state.unit_types, state.unit_health
@@ -136,7 +150,11 @@ def text_fn(text):
 
 def image_fn(skin: Skin):  # TODO:
     """Create an image for background (basemap or maskmap)"""
-    motif = cv2.resize(np.array(skin.maskmap.T), (skin.size, skin.size), interpolation=cv2.INTER_NEAREST).astype(np.uint8)
+    motif = cv2.resize(
+        np.array(skin.maskmap.T),
+        (skin.size, skin.size),
+        interpolation=cv2.INTER_NEAREST,
+    ).astype(np.uint8)
     motif = (motif > 0).astype(np.uint8)
     image = np.zeros((skin.size, skin.size, 3), dtype=np.uint8) + skin.bg
     image[motif == 1] = skin.fg
@@ -150,7 +168,9 @@ def unbatch_fn(state_seq, action_seq):
     if is_multi_run(state_seq):
         n_envs = state_seq[0][1].unit_positions.shape[0]
         state_seq_seq = [jax.tree_map(lambda x: x[i], state_seq) for i in range(n_envs)]
-        action_seq_seq = [jax.tree_map(lambda x: x[i], action_seq) for i in range(n_envs)]
+        action_seq_seq = [
+            jax.tree_map(lambda x: x[i], action_seq) for i in range(n_envs)
+        ]
     else:
         state_seq_seq = [state_seq]
         action_seq_seq = [action_seq]
@@ -161,7 +181,9 @@ def expand_fn(env, state_seq, action_seq):
     """Expand the state sequence"""
     fn = env.expand_state_seq
     state_seq = vmap(fn)(state_seq) if is_multi_run(state_seq) else fn(state_seq)
-    action_seq = [action_seq[i // env.world_steps_per_env_step] for i in range(len(state_seq))]
+    action_seq = [
+        action_seq[i // env.world_steps_per_env_step] for i in range(len(state_seq))
+    ]
     return state_seq, action_seq
 
 
