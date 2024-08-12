@@ -9,8 +9,8 @@ Specifically, it provides functions to:
 
 # %% Imports
 import numpy as np
+import os
 import contextily as cx
-from pyproj import Transformer
 from typing import Tuple
 import geopandas as gpd
 from geopy.geocoders import Nominatim
@@ -25,9 +25,7 @@ import rasterio
 # %% Constants
 BUILDING_TAGS = {"building": True}
 geolocator = Nominatim(user_agent="parabellum")
-provider = cx.providers.OpenStreetMap.Mapnik  # type: ignore
-# cache dir is the parent directory of the current file (home file of pyproject.toml)
-# dio not use __file__ as this might be run in repl
+provider = cx.providers.CartoDB.Positron  # type: ignore
 
 
 # %% Functions
@@ -35,15 +33,8 @@ def get_coords(place: str) -> Tuple[float, float]:
     """Get coordinates for a given place."""
     coords = geolocator.geocode(place)
     assert coords is not None, f"Could not geocode the place: {place}"
-    return (coords.latitude, coords.longitude)  # type: ignore
-
-
-def get_geometry(coord: Tuple[float, float], size: int) -> gpd.GeoDataFrame:
-    """Get building geometry for a given point and size."""
-    geometry = gpd.GeoDataFrame(
-        geometry=[Point(coord[1], coord[0])], crs="EPSG:4326"
-    ).buffer(size / 111320)  # Approximate degrees for the given pixel size
-    return geometry
+    coords = (coords.longitude, coords.latitude)  # type: ignore
+    return coords
 
 
 def get_raster(place: str, size: int) -> jnp.ndarray:
@@ -56,7 +47,7 @@ def get_raster(place: str, size: int) -> jnp.ndarray:
     return jnp.array(raster)  # jnp.array(jnp.flip(raster, 0)).astype(jnp.uint8)
 
 
-def get_image(place: str, size: int = 1000):
+def get_image(place: str, meters: int = 1000):
     """
     Get a map image of the given place as a numpy array, where each pixel covers exactly one meter.
     :param place: Name of the place to retrieve the map for
@@ -64,40 +55,45 @@ def get_image(place: str, size: int = 1000):
     :return: Numpy array of shape (size, size, 3) representing the map image
     """
     lon, lat = get_coords(place)
-    transformer = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-    x, y = transformer.transform(lon, lat)
-    # Convert the center point to web mercator coordinates
-
-    # Calculate the extent (500 meters in each direction from the center)
-    extent = [x - 500, x + 500, y - 500, y + 500]
-
-    # Create a figure and axis
-    fig, ax = plt.subplots(figsize=(10, 10))
-
-    # Set the extent of the axis
-    ax.set_xlim(extent[0], extent[1])
-    ax.set_ylim(extent[2], extent[3])
-
-    # Add the basemap
-    cx.add_basemap(ax, crs="EPSG:3857", source=provider, zoom=10)
-
-    # Remove axis ticks and labels
-    ax.set_axis_off()
-
-    return fig
+    print(lon, lat)
+    gdf = (
+        gpd.GeoDataFrame(geometry=[Point(lon, lat)], crs="EPSG:4326")
+        .to_crs(epsg=3857)
+        .buffer(meters)  # type: ignore  # TODO: confirm that we should indeed divide by 2
+    )
+    dpi = 300
+    fig, ax = plt.subplots(figsize=(meters / dpi, meters / dpi), dpi=dpi)
+    gdf.plot(ax=ax, facecolor="none", edgecolor="red", linewidth=0)
+    # hide copywright
+    cx.add_basemap(ax, source=provider, zoom="auto", attribution=False)
+    ax.set_ylim([gdf.total_bounds[1], gdf.total_bounds[3]])  # type: ignore
+    ax.set_xlim([gdf.total_bounds[0], gdf.total_bounds[2]])  # type: ignore
+    # remove axis, padding, etc.
+    plt.tight_layout()
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    random_tmp_name = hash(f"{place}_{meters}")
+    plt.savefig(f"{random_tmp_name}.png", bbox_inches="tight", pad_inches=0)
+    # convert to numpy array
+    plt.close()
+    image = np.array(Image.open(f"{random_tmp_name}.png"))
+    os.remove(f"{random_tmp_name}.png")
+    # remove alpha channel if present
+    if image.shape[-1] == 4:
+        image = image[:, :, :3]
+    return image
 
 
 # %% Test the functions
-import seaborn as sns
-import matplotlib.pyplot as plt
+if __name__ == "__main__":
+    import matplotlib.pyplot as plt
 
-place = "Copenhagen, Denmark"
+    place = "Vesterbro, Copenhagen, Denmark"
 
-# raster = get_raster(place, size=3000)
-# sns.heatmap(1 - raster, cbar=False, square=True)
-# plt.show()
+    # raster = get_raster(place, size=3000)
+    # print(raster.shape)
+    # sns.heatmap(1 - raster, cbar=False, square=True)
+    # plt.show()
 
-# %% Test get_coords
-fig = get_image(place, size=3000)
-plt.show()
-# plt.imshow(image)
+    # %% Test get_coords
+    # image = get_image(place, 1000)
