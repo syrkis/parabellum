@@ -11,7 +11,6 @@ Specifically, it provides functions to:
 import numpy as np
 import os
 import contextily as cx
-from typing import Tuple
 import geopandas as gpd
 from geopy.geocoders import Nominatim
 import jax.numpy as jnp
@@ -20,27 +19,28 @@ import osmnx as ox
 from PIL import Image
 from rasterio import features
 import rasterio
+import matplotlib.pyplot as plt
 
 
 # %% Constants
-BUILDING_TAGS = {"building": True}
+BUILDING_TAGS = {"building": True, "landuse": "construction"}
 geolocator = Nominatim(user_agent="parabellum")
 provider = cx.providers.CartoDB.Positron  # type: ignore
 
 
 # %% Functions
-def get_coords(place: str) -> Tuple[float, float]:
+def get_coords(place: str):
     """Get coordinates for a given place."""
     coords = geolocator.geocode(place)
     assert coords is not None, f"Could not geocode the place: {place}"
-    coords = (coords.longitude, coords.latitude)  # type: ignore
     return coords
 
 
-def get_raster(place: str, size: int) -> jnp.ndarray:
+def get_raster(place: str, size: int, tags) -> jnp.ndarray:
     """Rasterize geometry and return as a JAX array."""
     coord = get_coords(place)
-    geom = ox.features_from_point(coord, tags=BUILDING_TAGS, dist=size // 2)
+    lon, lat = coord.longitude, coord.latitude
+    geom = ox.features_from_point((lon, lat), tags=tags, dist=size)
     gdf = gpd.GeoDataFrame(geom).set_crs("EPSG:4326")
     t = rasterio.transform.from_bounds(*gdf.total_bounds, size, size)  # type: ignore
     raster = features.rasterize(geom.geometry, out_shape=(size, size), transform=t)
@@ -86,10 +86,13 @@ def get_image(place: str, meters: int = 1000):
 
 # %% Test the functions
 if __name__ == "__main__":
-    import matplotlib.pyplot as plt
-
-    place = "Vesterbro, Copenhagen, Denmark"
-
+    # place = "Vesterbro, Copenhagen, Denmark"
+    rasters = []
+    for tags in [{"building": True}, {"landuse": "construction"}]:
+        raster = get_raster("Vesterbro, Copenhagen, Denmark", 1000, tags)
+        rasters.append(raster)
+    rasters = np.stack(rasters, axis=-1)
+    print(rasters.shape)
     # raster = get_raster(place, size=3000)
     # print(raster.shape)
     # sns.heatmap(1 - raster, cbar=False, square=True)

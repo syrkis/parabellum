@@ -17,7 +17,6 @@ darkdetect = "^0.8.0"
 poetry = "^1.8.3"
 tqdm = "^4.66.4"
 jaxmarl = "0.0.3"
-jax = "0.4.17"
 geopy = "^2.4.1"
 geopandas = "^1.0.0"
 osmnx = "^1.9.3"
@@ -29,6 +28,8 @@ folium = "^0.17.0"
 pandas = "^2.2.2"
 contextily = "^1.6.0"
 opencv-python = "^4.10.0.84"
+einops = "^0.8.0"
+jax = "0.4.17"
 
 [tool.poetry.group.docs]
 optional = true
