@@ -9,3 +9,4 @@ pyrightconfig.json
 output
 parabellum/cache/
 .ruff_cache/
+.coverage
