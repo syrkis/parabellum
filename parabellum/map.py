@@ -1,102 +1,95 @@
-"""
-This module provides functions to retrieve a mask and image of a given place on Earth.
-Specifically, it provides functions to:
-    1. Get coordinates for a given place (get_coords)
-    2. Get building geometry for a given point and size (get_geometry)
-    3. Get a raster mask (0 is background and 1 is building) of a given place (get_raster)
-    4. Get a map image of a given place (get_image)
-"""
+# ludens.py
+#    script for fucking around and finding out
+# by: Noah Syrkis
+
 
 # %% Imports
-import numpy as np
-import os
-import contextily as cx
-import geopandas as gpd
-from geopy.geocoders import Nominatim
-import jax.numpy as jnp
-from shapely.geometry import Point
-import osmnx as ox
-from PIL import Image
-from rasterio import features
-import rasterio
+# import parabellum as pb
 import matplotlib.pyplot as plt
-
+import osmnx as ox
+from geopy.geocoders import Nominatim
+import numpy as np
+import contextily as cx
+import jax.numpy as jnp
+import geopandas as gpd
+import rasterio
+from rasterio import features
+from shapely.geometry import Point
+from typing import List
 
 # %% Constants
-BUILDING_TAGS = {"building": True, "landuse": "construction"}
 geolocator = Nominatim(user_agent="parabellum")
-provider = cx.providers.CartoDB.Positron  # type: ignore
+source = cx.providers.OpenStreetMap.Mapnik  # type: ignore
 
 
-# %% Functions
-def get_coords(place: str):
-    """Get coordinates for a given place."""
-    coords = geolocator.geocode(place)
-    assert coords is not None, f"Could not geocode the place: {place}"
-    return coords
+def get_raster(
+    place: str, meters: int = 1000, tags: List[dict] | dict = {"building": True}
+) -> jnp.ndarray:
+    # look here for tags https://wiki.openstreetmap.org/wiki/Map_features
+    def aux(place, tag):
+        """Rasterize geometry and return as a JAX array."""
+        place = geolocator.geocode(place)  # type: ignore
+        point = place.latitude, place.longitude  # type: ignore  # confusing order of lat/lon
+        geom = ox.features_from_point(point, tags=tag, dist=meters // 2)
+        gdf = gpd.GeoDataFrame(geom).set_crs("EPSG:4326")
+        # crop everythin outside of the meters x meters square
+        gdf = gdf.cx[
+            place.longitude - meters / 2 : place.longitude + meters / 2,
+            place.latitude - meters / 2 : place.latitude + meters / 2,
+        ]
+
+        # bounds should be meters, meters
+        t = rasterio.transform.from_bounds(*bounds, meters, meters)  # type: ignore
+        raster = features.rasterize(
+            gdf.geometry, out_shape=(meters, meters), transform=t
+        )
+        return jnp.array(raster)
+
+    if isinstance(tags, dict):
+        return aux(place, tags)
+    else:
+        return jnp.stack([aux(place, tag) for tag in tags])
 
 
-def get_raster(place: str, size: int, tags) -> jnp.ndarray:
-    """Rasterize geometry and return as a JAX array."""
-    coord = get_coords(place)
-    lon, lat = coord.longitude, coord.latitude
-    geom = ox.features_from_point((lon, lat), tags=tags, dist=size)
-    gdf = gpd.GeoDataFrame(geom).set_crs("EPSG:4326")
-    t = rasterio.transform.from_bounds(*gdf.total_bounds, size, size)  # type: ignore
-    raster = features.rasterize(geom.geometry, out_shape=(size, size), transform=t)
-    return jnp.array(raster)  # jnp.array(jnp.flip(raster, 0)).astype(jnp.uint8)
+def get_basemap(
+    place: str, size: int = 1000
+) -> np.ndarray:  # TODO: image is slightly off from raster. Fix this.
+    # Create a GeoDataFrame with the center point
+    place = geolocator.geocode(place)  # type: ignore
+    lon, lat = place.longitude, place.latitude  # type: ignore
+    gdf = gpd.GeoDataFrame(geometry=[Point(lon, lat)], crs="EPSG:4326")
+    gdf = gdf.to_crs("EPSG:3857")
 
+    # Create a buffer around the center point
+    # buffer = gdf.buffer(size)  # type: ignore
+    buffer = gdf
+    bounds = buffer.total_bounds  # i think this is wrong, since it ignores empty space
+    # modify bounds to include empty space
+    bounds = (bounds[0] - size, bounds[1] - size, bounds[2] + size, bounds[3] + size)
 
-def get_image(place: str, meters: int = 1000):
-    """
-    Get a map image of the given place as a numpy array, where each pixel covers exactly one meter.
-    :param place: Name of the place to retrieve the map for
-    :param size: Size of the image in pixels (default 1000)
-    :return: Numpy array of shape (size, size, 3) representing the map image
-    """
-    lon, lat = get_coords(place)
-    print(lon, lat)
-    gdf = (
-        gpd.GeoDataFrame(geometry=[Point(lon, lat)], crs="EPSG:4326")
-        .to_crs(epsg=3857)
-        .buffer(meters)  # type: ignore  # TODO: confirm that we should indeed divide by 2
-    )
+    # Create a figure and axis
     dpi = 300
-    fig, ax = plt.subplots(figsize=(meters / dpi, meters / dpi), dpi=dpi)
-    gdf.plot(ax=ax, facecolor="none", edgecolor="red", linewidth=0)
-    # hide copywright
-    cx.add_basemap(ax, source=provider, zoom="auto", attribution=False)
-    ax.set_ylim([gdf.total_bounds[1], gdf.total_bounds[3]])  # type: ignore
-    ax.set_xlim([gdf.total_bounds[0], gdf.total_bounds[2]])  # type: ignore
-    # remove axis, padding, etc.
+    fig, ax = plt.subplots(figsize=(size / dpi, size / dpi), dpi=dpi)
+    buffer.plot(ax=ax, facecolor="none", edgecolor="red", linewidth=0)
+
+    # Calculate the zoom level for the basemap
+
+    # Add the basemap to the axis
+    cx.add_basemap(ax, source=source, zoom="auto", attribution=False)
+
+    # Set the x and y limits of the axis
+    ax.set_xlim(bounds[0], bounds[2])
+    ax.set_ylim(bounds[1], bounds[3])
+
+    # convert the image (without axis or border) to a numpy array
+    plt.axis("off")
     plt.tight_layout()
-    ax.axis("off")
-    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    random_tmp_name = hash(f"{place}_{meters}")
-    plt.savefig(f"{random_tmp_name}.png", bbox_inches="tight", pad_inches=0)
-    # convert to numpy array
+
+    # remove whitespace
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    fig.canvas.draw()
+
+    image = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)  # type: ignore
+    image = image.reshape(fig.canvas.get_width_height()[::-1] + (3,))
     plt.close()
-    image = np.array(Image.open(f"{random_tmp_name}.png"))
-    os.remove(f"{random_tmp_name}.png")
-    # remove alpha channel if present
-    if image.shape[-1] == 4:
-        image = image[:, :, :3]
-    return image
-
-
-# %% Test the functions
-if __name__ == "__main__":
-    # place = "Vesterbro, Copenhagen, Denmark"
-    rasters = []
-    for tags in [{"building": True}, {"landuse": "construction"}]:
-        raster = get_raster("Vesterbro, Copenhagen, Denmark", 1000, tags)
-        rasters.append(raster)
-    rasters = np.stack(rasters, axis=-1)
-    print(rasters.shape)
-    # raster = get_raster(place, size=3000)
-    # print(raster.shape)
-    # sns.heatmap(1 - raster, cbar=False, square=True)
-    # plt.show()
-
-    # %% Test get_coords
-    # image = get_image(place, 1000)
+    return jnp.array(image)  # type: ignore
