@@ -79,19 +79,6 @@ def make_scenario(
         place, terrain_raster, unit_starting_sectors, unit_types, n_allies, n_enemies
     )
 
-# + active=""
-# def spawn_fn(rng: jnp.ndarray, units_spawning_sectors: jnp.ndarray):
-#     """Spawns n agents on a map."""
-#     rng, key_start, key_noise = random.split(rng, 3)
-#     noise = random.uniform(key_noise, (n, 2)) * 0.5
-#
-#     # select n random (x, y)-coords where sector == True
-#     idxs = random.choice(key_start, pool[0].shape[0], (n,), replace=False)
-#     coords = jnp.array([pool[0][idxs], pool[1][idxs]]).T
-#
-#     return coords + noise + offset
-# -
-
 
 def spawn_fn(rng: jnp.ndarray, units_spawning_sectors: jnp.ndarray,  terrain: jnp.ndarray):
     """Spawns n agents on a map."""
@@ -104,23 +91,6 @@ def spawn_fn(rng: jnp.ndarray, units_spawning_sectors: jnp.ndarray,  terrain: jn
         spawn_positions.append(coord + noise)
     return jnp.array(spawn_positions, dtype=jnp.float32)
 
-
-# + active=""
-# def sectors_fn(sectors: jnp.ndarray, terrain: jnp.ndarray):
-#     """return sector slice of terrain"""
-#     width, height = terrain.shape
-#     coordx, coordy = int(sector[0] * width), int(sector[1] * height)
-#     sector = (
-#         terrain[
-#             coordy : coordy + int(sector[3] * height),
-#             coordx : coordx + int(sector[2] * width),
-#         ]
-#         == 0
-#     )
-#     offset = jnp.array([coordx, coordy])
-#     # sector is jnp.nonzero
-#     return jnp.nonzero(sector.T), offset
-# -
 
 def sectors_fn(sectors: jnp.ndarray, terrain: jnp.ndarray):
     """
@@ -141,6 +111,11 @@ class Environment(SMAX):
     def __init__(self, scenario: Scenario, **kwargs):
         map_height, map_width = scenario.terrain_raster.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
+        if "unit_type_pushable" in kwargs:
+            self.unit_type_pushable = kwargs["unit_type_pushable"]
+            del kwargs["unit_type_pushable"]
+        else:
+            self.unit_type_pushable = jnp.array([1,1,0,0,0,1])
         super(Environment, self).__init__(**args, walls_cause_death=False, **kwargs)
         self.terrain_raster = scenario.terrain_raster
         self.unit_starting_sectors = scenario.unit_starting_sectors
@@ -251,7 +226,7 @@ class Environment(SMAX):
             pos
             + firmness * jnp.sum(delta_matrix * overlap_term[:, :, None], axis=1) / 2
         )
-        return unit_positions
+        return jnp.where(self.unit_type_pushable[unit_types][:, None], unit_positions, pos)
 
     def has_line_of_sight(self, source, target):
         resolution = self.terrain_raster.shape[0] + self.terrain_raster.shape[1]
