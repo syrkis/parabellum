@@ -182,6 +182,49 @@ class Environment(SMAX):
         obs.pop("world_state")
         return obs, state, rewards, dones, infos
 
+    def get_obs_unit_list(self, state: State) -> Dict[str, chex.Array]:
+        """Applies observation function to state."""
+
+        def get_features(i, j):
+            """Get features of unit j as seen from unit i"""
+            # Can just keep them symmetrical for now.
+            # j here means 'the jth unit that is not i'
+            # The observation is such that allies are always first
+            # so for units in the second team we count in reverse.
+            j = jax.lax.cond(
+                i < self.num_allies,
+                lambda: j,
+                lambda: self.num_agents - j - 1,
+            )
+            offset = jax.lax.cond(i < self.num_allies, lambda: 1, lambda: -1)
+            j_idx = jax.lax.cond(
+                ((j < i) & (i < self.num_allies)) | ((j > i) & (i >= self.num_allies)),
+                lambda: j,
+                lambda: j + offset,
+            )
+            empty_features = jnp.zeros(shape=(len(self.unit_features),))
+            features = self._observe_features(state, i, j_idx)
+            visible = (
+                jnp.linalg.norm(state.unit_positions[j_idx] - state.unit_positions[i])
+                < self.unit_type_sight_ranges[state.unit_types[i]]
+            )
+            return jax.lax.cond(
+                visible & state.unit_alive[i] & state.unit_alive[j_idx] & self.has_line_of_sight(state.unit_positions[j_idx], state.unit_positions[i]),
+                lambda: features,
+                lambda: empty_features,
+            )
+
+        get_all_features_for_unit = jax.vmap(get_features, in_axes=(None, 0))
+        get_all_features = jax.vmap(get_all_features_for_unit, in_axes=(0, None))
+        other_unit_obs = get_all_features(
+            jnp.arange(self.num_agents), jnp.arange(self.num_agents - 1)
+        )
+        other_unit_obs = other_unit_obs.reshape((self.num_agents, -1))
+        get_all_self_features = jax.vmap(self._get_own_features, in_axes=(None, 0))
+        own_unit_obs = get_all_self_features(state, jnp.arange(self.num_agents))
+        obs = jnp.concatenate([other_unit_obs, own_unit_obs], axis=-1)
+        return {agent: obs[self.agent_ids[agent]] for agent in self.agents}
+    
     def _our_push_units_away(
         self, pos, unit_types, firmness: float = 1.0
     ):  # copy of SMAX._push_units_away but used without state and called inside _world_step to allow more obstacles constraints
@@ -202,6 +245,14 @@ class Environment(SMAX):
         )
         return unit_positions
 
+    def has_line_of_sight(self, source, target):
+        resolution = self.terrain_raster.shape[0] + self.terrain_raster.shape[1]
+        t = jnp.tile(jnp.linspace(0, 1, resolution), (2, resolution))
+        cells = jnp.array(source[:, jnp.newaxis] * t + (1-t) * target[:, jnp.newaxis], dtype=jnp.int32)
+        mask = jnp.zeros(self.terrain_raster.shape).at[cells[1, :], cells[0, :]].set(1)
+        return ~jnp.any(jnp.logical_and(mask, self.terrain_raster))
+
+    
     @partial(jax.jit, static_argnums=(0,))  # replace the _world_step method
     def _world_step(  # modified version of JaxMARL's SMAX _world_step
         self,
@@ -209,14 +260,6 @@ class Environment(SMAX):
         state: State,
         actions: Tuple[chex.Array, chex.Array],
     ) -> State:
-        @partial(jax.vmap, in_axes=(None, None, 0, 0))
-        def intersect_fn(pos, new_pos, obs, obs_end):
-            d1 = jnp.cross(obs - pos, new_pos - pos)
-            d2 = jnp.cross(obs_end - pos, new_pos - pos)
-            d3 = jnp.cross(pos - obs, obs_end - obs)
-            d4 = jnp.cross(new_pos - obs, obs_end - obs)
-            return (d1 * d2 <= 0) & (d3 * d4 <= 0)
-
         def raster_crossing(pos, new_pos):
             pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
             raster = jnp.copy(self.terrain_raster)
@@ -227,6 +270,7 @@ class Environment(SMAX):
             raster = jnp.where(jnp.arange(raster.shape[1]) >= minimum[1], raster.T, 0).T
             raster = jnp.where(jnp.arange(raster.shape[1]) <= maximum[1], raster.T, 0).T
             return jnp.any(raster)
+
 
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
@@ -297,6 +341,7 @@ class Environment(SMAX):
                 )
                 & state.unit_alive[idx]
                 & state.unit_alive[attacked_idx]
+                & self.has_line_of_sight(state.unit_positions[idx], state.unit_positions[attacked_idx])
             )
             attack_valid = attack_valid & (idx != attacked_idx)
             attack_valid = attack_valid & (state.unit_weapon_cooldowns[idx] <= 0.0)
@@ -411,7 +456,6 @@ class Environment(SMAX):
             unit_weapon_cooldowns=unit_weapon_cooldowns,
         )
         return state
-
 
 if __name__ == "__main__":
     n_envs = 4
