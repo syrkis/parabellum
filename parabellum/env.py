@@ -17,7 +17,7 @@ class Scenario:
 
     place: str
     terrain_raster: jnp.ndarray
-    unit_starting_sectors: jnp.ndarray
+    unit_starting_sectors: jnp.ndarray  # must be of size (num_units, 4) where sectors[i] = (x, y, width, height) of the ith unit's spawning sector (in % of the real map)
     unit_types: chex.Array
     num_allies: int
     num_enemies: int
@@ -46,7 +46,7 @@ scenarios = {
     "default": Scenario(
         "Identity Town",
         jnp.eye(64, dtype=jnp.uint8),
-        jnp.array([[0, 0, 0.2, 0.2], [0.7, 0.7, 0.2, 0.2]]),
+        jnp.array([[0, 0, 0.2, 0.2]]*9 + [[0.7, 0.7, 0.2, 0.2]]*10),
         jnp.zeros((19,), dtype=jnp.uint8),
         9,
         10,
@@ -79,46 +79,65 @@ def make_scenario(
         place, terrain_raster, unit_starting_sectors, unit_types, n_allies, n_enemies
     )
 
+# + active=""
+# def spawn_fn(rng: jnp.ndarray, units_spawning_sectors: jnp.ndarray):
+#     """Spawns n agents on a map."""
+#     rng, key_start, key_noise = random.split(rng, 3)
+#     noise = random.uniform(key_noise, (n, 2)) * 0.5
+#
+#     # select n random (x, y)-coords where sector == True
+#     idxs = random.choice(key_start, pool[0].shape[0], (n,), replace=False)
+#     coords = jnp.array([pool[0][idxs], pool[1][idxs]]).T
+#
+#     return coords + noise + offset
+# -
 
-def spawn_fn(pool, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
+
+def spawn_fn(rng: jnp.ndarray, units_spawning_sectors: jnp.ndarray,  terrain: jnp.ndarray):
     """Spawns n agents on a map."""
-    rng, key_start, key_noise = random.split(rng, 3)
-    noise = random.uniform(key_noise, (n, 2)) * 0.5
+    spawn_positions = []
+    for sector in units_spawning_sectors:
+        rng, key_start, key_noise = random.split(rng, 3)
+        noise = random.uniform(key_noise, (2,)) * 0.5
+        idx = random.choice(key_start, sector[0].shape[0])
+        coord = jnp.array([sector[0][idx], sector[1][idx]]) 
+        spawn_positions.append(coord + noise)
+    return jnp.array(spawn_positions, dtype=jnp.float32)
 
-    # select n random (x, y)-coords where sector == True
-    idxs = random.choice(key_start, pool[0].shape[0], (n,), replace=False)
-    coords = jnp.array([pool[0][idxs], pool[1][idxs]]).T
 
-    return coords + noise + offset
-
-
-# def sector_fn(terrain: jnp.ndarray, sector_id: int):
+# + active=""
+# def sectors_fn(sectors: jnp.ndarray, terrain: jnp.ndarray):
 #     """return sector slice of terrain"""
 #     width, height = terrain.shape
-#     coordx, coordy = sector_id // 5 * width // 5, sector_id % 5 * height // 5
-#     sector = terrain[coordx : coordx + width // 5, coordy : coordy + height // 5] == 0
+#     coordx, coordy = int(sector[0] * width), int(sector[1] * height)
+#     sector = (
+#         terrain[
+#             coordy : coordy + int(sector[3] * height),
+#             coordx : coordx + int(sector[2] * width),
+#         ]
+#         == 0
+#     )
 #     offset = jnp.array([coordx, coordy])
 #     # sector is jnp.nonzero
-#     return jnp.nonzero(sector), offset
+#     return jnp.nonzero(sector.T), offset
+# -
 
-
-def sector_fn(terrain: jnp.ndarray, sector: jnp.ndarray):
-    """return sector slice of terrain"""
+def sectors_fn(sectors: jnp.ndarray, terrain: jnp.ndarray):
+    """
+    sectors must be of size (num_units, 4) where sectors[i] = (x, y, width, height) of the ith unit's spawning sector (in % of the real map)
+    """
     width, height = terrain.shape
-    coordx, coordy = int(sector[0] * width), int(sector[1] * height)
-    sector = (
-        terrain[
-            coordy : coordy + int(sector[3] * height),
-            coordx : coordx + int(sector[2] * width),
-        ]
-        == 0
-    )
-    offset = jnp.array([coordx, coordy])
-    # sector is jnp.nonzero
-    return jnp.nonzero(sector.T), offset
+    spawning_sectors = []
+    for sector in sectors:
+        coordx, coordy = jnp.array(sector[0] * width, dtype=jnp.int32), jnp.array(sector[1] * height, dtype=jnp.int32)
+        sector = (terrain[coordy : coordy + int(sector[3] * height), coordx : coordx + int(sector[2] * width)] == 0)
+        valid = jnp.nonzero(sector.T)
+        spawning_sectors.append(jnp.array(valid) + jnp.array([coordx, coordy]).reshape((2, -1) ))
+    return spawning_sectors
 
 
 class Environment(SMAX):
+
     def __init__(self, scenario: Scenario, **kwargs):
         map_height, map_width = scenario.terrain_raster.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
@@ -133,24 +152,13 @@ class Environment(SMAX):
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
-        self.team0_sector, self.team0_sector_offset = sector_fn(
-            self.terrain_raster, self.unit_starting_sectors[0]
-        )  # sector_fn(self.terrain_raster, 0)
-        self.team1_sector, self.team1_sector_offset = sector_fn(
-            self.terrain_raster, self.unit_starting_sectors[1]
-        )  # sector_fn(self.terrain_raster, 24)
+        
+        self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain_raster)
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
-        ally_key, enemy_key = jax.random.split(rng)
-        team_0_start = spawn_fn(
-            self.team0_sector, self.team0_sector_offset, self.num_allies, ally_key
-        )
-        team_1_start = spawn_fn(
-            self.team1_sector, self.team1_sector_offset, self.num_enemies, enemy_key
-        )
-        unit_positions = jnp.concatenate([team_0_start, team_1_start])
+        unit_positions = spawn_fn(rng, self.spawning_sectors, self.terrain_raster)
         unit_teams = jnp.zeros((self.num_agents,))
         unit_teams = unit_teams.at[self.num_allies :].set(1)
         unit_weapon_cooldowns = jnp.zeros((self.num_agents,))
