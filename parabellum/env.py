@@ -116,6 +116,11 @@ class Environment(SMAX):
             del kwargs["unit_type_pushable"]
         else:
             self.unit_type_pushable = jnp.array([1,1,0,0,0,1])
+        if "reset_when_done" in kwargs:
+            self.reset_when_done = kwargs["reset_when_done"]
+            del kwargs["reset_when_done"]
+        else:
+            self.reset_when_done = True
         super(Environment, self).__init__(**args, walls_cause_death=False, **kwargs)
         self.terrain_raster = scenario.terrain_raster
         self.unit_starting_sectors = scenario.unit_starting_sectors
@@ -127,8 +132,8 @@ class Environment(SMAX):
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
-        
         self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain_raster)
+        
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
@@ -163,6 +168,9 @@ class Environment(SMAX):
         obs, state, rewards, dones, infos = super().step_env(rng, state, action)
         # delete world_state from obs
         obs.pop("world_state")
+        if not self.reset_when_done:
+            for key in dones.keys():
+                dones[key] = False 
         return obs, state, rewards, dones, infos
 
     def get_obs_unit_list(self, state: State) -> Dict[str, chex.Array]:
@@ -270,7 +278,7 @@ class Environment(SMAX):
             )
             # avoid going out of bounds
             new_pos = jnp.maximum(
-                jnp.minimum(new_pos, jnp.array([self.map_width, self.map_height])),
+                jnp.minimum(new_pos, jnp.array([self.map_width-1, self.map_height-1])),
                 jnp.zeros((2,)),
             )
 
