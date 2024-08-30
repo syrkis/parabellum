@@ -18,7 +18,7 @@ poetry = "^1.8.3"
 tqdm = "^4.66.4"
 jaxmarl = "0.0.3"
 geopy = "^2.4.1"
-osmnx = "1.9.4"
+osmnx = "2.0.0b0"
 rasterio = "^1.3.10"
 seaborn = "^0.13.2"
 numpy = "<2"
@@ -29,6 +29,9 @@ contextily = "^1.6.0"
 opencv-python = "^4.10.0.84"
 einops = "^0.8.0"
 jax = "0.4.17"
+jaxtyping = "^0.2.33"
+cartopy = "^0.23.0"
+stadiamaps = "^3.2.1"
 
 [tool.poetry.group.docs]
 optional = true
