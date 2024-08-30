@@ -17,7 +17,7 @@ class Scenario:
 
     place: str
     terrain_raster: jnp.ndarray
-    unit_starting_sectors: jnp.ndarray
+    unit_starting_sectors: jnp.ndarray  # must be of size (num_units, 4) where sectors[i] = (x, y, width, height) of the ith unit's spawning sector (in % of the real map)
     unit_types: chex.Array
     num_allies: int
     num_enemies: int
@@ -46,7 +46,7 @@ scenarios = {
     "default": Scenario(
         "Identity Town",
         jnp.eye(64, dtype=jnp.uint8),
-        jnp.array([[0, 0, 0.2, 0.2], [0.7, 0.7, 0.2, 0.2]]),
+        jnp.array([[0, 0, 0.2, 0.2]]*9 + [[0.7, 0.7, 0.2, 0.2]]*10),
         jnp.zeros((19,), dtype=jnp.uint8),
         9,
         10,
@@ -80,48 +80,47 @@ def make_scenario(
     )
 
 
-def spawn_fn(pool, offset: jnp.ndarray, n: int, rng: jnp.ndarray):
+def spawn_fn(rng: jnp.ndarray, units_spawning_sectors: jnp.ndarray,  terrain: jnp.ndarray):
     """Spawns n agents on a map."""
-    rng, key_start, key_noise = random.split(rng, 3)
-    noise = random.uniform(key_noise, (n, 2)) * 0.5
-
-    # select n random (x, y)-coords where sector == True
-    idxs = random.choice(key_start, pool[0].shape[0], (n,), replace=False)
-    coords = jnp.array([pool[0][idxs], pool[1][idxs]]).T
-
-    return coords + noise + offset
-
-
-# def sector_fn(terrain: jnp.ndarray, sector_id: int):
-#     """return sector slice of terrain"""
-#     width, height = terrain.shape
-#     coordx, coordy = sector_id // 5 * width // 5, sector_id % 5 * height // 5
-#     sector = terrain[coordx : coordx + width // 5, coordy : coordy + height // 5] == 0
-#     offset = jnp.array([coordx, coordy])
-#     # sector is jnp.nonzero
-#     return jnp.nonzero(sector), offset
+    spawn_positions = []
+    for sector in units_spawning_sectors:
+        rng, key_start, key_noise = random.split(rng, 3)
+        noise = random.uniform(key_noise, (2,)) * 0.5
+        idx = random.choice(key_start, sector[0].shape[0])
+        coord = jnp.array([sector[0][idx], sector[1][idx]]) 
+        spawn_positions.append(coord + noise)
+    return jnp.array(spawn_positions, dtype=jnp.float32)
 
 
-def sector_fn(terrain: jnp.ndarray, sector: jnp.ndarray):
-    """return sector slice of terrain"""
+def sectors_fn(sectors: jnp.ndarray, terrain: jnp.ndarray):
+    """
+    sectors must be of size (num_units, 4) where sectors[i] = (x, y, width, height) of the ith unit's spawning sector (in % of the real map)
+    """
     width, height = terrain.shape
-    coordx, coordy = int(sector[0] * width), int(sector[1] * height)
-    sector = (
-        terrain[
-            coordy : coordy + int(sector[3] * height),
-            coordx : coordx + int(sector[2] * width),
-        ]
-        == 0
-    )
-    offset = jnp.array([coordx, coordy])
-    # sector is jnp.nonzero
-    return jnp.nonzero(sector.T), offset
+    spawning_sectors = []
+    for sector in sectors:
+        coordx, coordy = jnp.array(sector[0] * width, dtype=jnp.int32), jnp.array(sector[1] * height, dtype=jnp.int32)
+        sector = (terrain[coordy : coordy + int(sector[3] * height), coordx : coordx + int(sector[2] * width)] == 0)
+        valid = jnp.nonzero(sector.T)
+        spawning_sectors.append(jnp.array(valid) + jnp.array([coordx, coordy]).reshape((2, -1) ))
+    return spawning_sectors
 
 
 class Environment(SMAX):
+
     def __init__(self, scenario: Scenario, **kwargs):
         map_height, map_width = scenario.terrain_raster.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
+        if "unit_type_pushable" in kwargs:
+            self.unit_type_pushable = kwargs["unit_type_pushable"]
+            del kwargs["unit_type_pushable"]
+        else:
+            self.unit_type_pushable = jnp.array([1,1,0,0,0,1])
+        if "reset_when_done" in kwargs:
+            self.reset_when_done = kwargs["reset_when_done"]
+            del kwargs["reset_when_done"]
+        else:
+            self.reset_when_done = True
         super(Environment, self).__init__(**args, walls_cause_death=False, **kwargs)
         self.terrain_raster = scenario.terrain_raster
         self.unit_starting_sectors = scenario.unit_starting_sectors
@@ -133,24 +132,13 @@ class Environment(SMAX):
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
-        self.team0_sector, self.team0_sector_offset = sector_fn(
-            self.terrain_raster, self.unit_starting_sectors[0]
-        )  # sector_fn(self.terrain_raster, 0)
-        self.team1_sector, self.team1_sector_offset = sector_fn(
-            self.terrain_raster, self.unit_starting_sectors[1]
-        )  # sector_fn(self.terrain_raster, 24)
+        self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain_raster)
+        
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
         """Environment-specific reset."""
-        ally_key, enemy_key = jax.random.split(rng)
-        team_0_start = spawn_fn(
-            self.team0_sector, self.team0_sector_offset, self.num_allies, ally_key
-        )
-        team_1_start = spawn_fn(
-            self.team1_sector, self.team1_sector_offset, self.num_enemies, enemy_key
-        )
-        unit_positions = jnp.concatenate([team_0_start, team_1_start])
+        unit_positions = spawn_fn(rng, self.spawning_sectors, self.terrain_raster)
         unit_teams = jnp.zeros((self.num_agents,))
         unit_teams = unit_teams.at[self.num_allies :].set(1)
         unit_weapon_cooldowns = jnp.zeros((self.num_agents,))
@@ -180,8 +168,54 @@ class Environment(SMAX):
         obs, state, rewards, dones, infos = super().step_env(rng, state, action)
         # delete world_state from obs
         obs.pop("world_state")
+        if not self.reset_when_done:
+            for key in dones.keys():
+                dones[key] = False 
         return obs, state, rewards, dones, infos
 
+    def get_obs_unit_list(self, state: State) -> Dict[str, chex.Array]:
+        """Applies observation function to state."""
+
+        def get_features(i, j):
+            """Get features of unit j as seen from unit i"""
+            # Can just keep them symmetrical for now.
+            # j here means 'the jth unit that is not i'
+            # The observation is such that allies are always first
+            # so for units in the second team we count in reverse.
+            j = jax.lax.cond(
+                i < self.num_allies,
+                lambda: j,
+                lambda: self.num_agents - j - 1,
+            )
+            offset = jax.lax.cond(i < self.num_allies, lambda: 1, lambda: -1)
+            j_idx = jax.lax.cond(
+                ((j < i) & (i < self.num_allies)) | ((j > i) & (i >= self.num_allies)),
+                lambda: j,
+                lambda: j + offset,
+            )
+            empty_features = jnp.zeros(shape=(len(self.unit_features),))
+            features = self._observe_features(state, i, j_idx)
+            visible = (
+                jnp.linalg.norm(state.unit_positions[j_idx] - state.unit_positions[i])
+                < self.unit_type_sight_ranges[state.unit_types[i]]
+            )
+            return jax.lax.cond(
+                visible & state.unit_alive[i] & state.unit_alive[j_idx] & self.has_line_of_sight(state.unit_positions[j_idx], state.unit_positions[i]),
+                lambda: features,
+                lambda: empty_features,
+            )
+
+        get_all_features_for_unit = jax.vmap(get_features, in_axes=(None, 0))
+        get_all_features = jax.vmap(get_all_features_for_unit, in_axes=(0, None))
+        other_unit_obs = get_all_features(
+            jnp.arange(self.num_agents), jnp.arange(self.num_agents - 1)
+        )
+        other_unit_obs = other_unit_obs.reshape((self.num_agents, -1))
+        get_all_self_features = jax.vmap(self._get_own_features, in_axes=(None, 0))
+        own_unit_obs = get_all_self_features(state, jnp.arange(self.num_agents))
+        obs = jnp.concatenate([other_unit_obs, own_unit_obs], axis=-1)
+        return {agent: obs[self.agent_ids[agent]] for agent in self.agents}
+    
     def _our_push_units_away(
         self, pos, unit_types, firmness: float = 1.0
     ):  # copy of SMAX._push_units_away but used without state and called inside _world_step to allow more obstacles constraints
@@ -200,8 +234,16 @@ class Environment(SMAX):
             pos
             + firmness * jnp.sum(delta_matrix * overlap_term[:, :, None], axis=1) / 2
         )
-        return unit_positions
+        return jnp.where(self.unit_type_pushable[unit_types][:, None], unit_positions, pos)
 
+    def has_line_of_sight(self, source, target):
+        resolution = self.terrain_raster.shape[0] + self.terrain_raster.shape[1]
+        t = jnp.tile(jnp.linspace(0, 1, resolution), (2, resolution))
+        cells = jnp.array(source[:, jnp.newaxis] * t + (1-t) * target[:, jnp.newaxis], dtype=jnp.int32)
+        mask = jnp.zeros(self.terrain_raster.shape).at[cells[1, :], cells[0, :]].set(1)
+        return ~jnp.any(jnp.logical_and(mask, self.terrain_raster))
+
+    
     @partial(jax.jit, static_argnums=(0,))  # replace the _world_step method
     def _world_step(  # modified version of JaxMARL's SMAX _world_step
         self,
@@ -209,14 +251,6 @@ class Environment(SMAX):
         state: State,
         actions: Tuple[chex.Array, chex.Array],
     ) -> State:
-        @partial(jax.vmap, in_axes=(None, None, 0, 0))
-        def intersect_fn(pos, new_pos, obs, obs_end):
-            d1 = jnp.cross(obs - pos, new_pos - pos)
-            d2 = jnp.cross(obs_end - pos, new_pos - pos)
-            d3 = jnp.cross(pos - obs, obs_end - obs)
-            d4 = jnp.cross(new_pos - obs, obs_end - obs)
-            return (d1 * d2 <= 0) & (d3 * d4 <= 0)
-
         def raster_crossing(pos, new_pos):
             pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
             raster = jnp.copy(self.terrain_raster)
@@ -227,6 +261,7 @@ class Environment(SMAX):
             raster = jnp.where(jnp.arange(raster.shape[1]) >= minimum[1], raster.T, 0).T
             raster = jnp.where(jnp.arange(raster.shape[1]) <= maximum[1], raster.T, 0).T
             return jnp.any(raster)
+
 
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
@@ -243,7 +278,7 @@ class Environment(SMAX):
             )
             # avoid going out of bounds
             new_pos = jnp.maximum(
-                jnp.minimum(new_pos, jnp.array([self.map_width, self.map_height])),
+                jnp.minimum(new_pos, jnp.array([self.map_width-1, self.map_height-1])),
                 jnp.zeros((2,)),
             )
 
@@ -297,6 +332,7 @@ class Environment(SMAX):
                 )
                 & state.unit_alive[idx]
                 & state.unit_alive[attacked_idx]
+                & self.has_line_of_sight(state.unit_positions[idx], state.unit_positions[attacked_idx])
             )
             attack_valid = attack_valid & (idx != attacked_idx)
             attack_valid = attack_valid & (state.unit_weapon_cooldowns[idx] <= 0.0)
@@ -411,7 +447,6 @@ class Environment(SMAX):
             unit_weapon_cooldowns=unit_weapon_cooldowns,
         )
         return state
-
 
 if __name__ == "__main__":
     n_envs = 4
