@@ -9,6 +9,7 @@ from geopy.distance import distance
 import contextily as cx
 import cartopy.crs as ccrs
 from jaxtyping import Array
+from shapely import box
 import osmnx as ox
 import geopandas as gpd
 import numpy as np
@@ -80,7 +81,7 @@ def basemap_fn(bbox: BBox) -> Array:
         tags={
             "building": True,  # <- can't move through buildings
             # "water": True,  # <- can move slowly through and not shoot while in water
-            "landuse": "forest",  # <- can move through forest and hide in it
+            # "landuse": "forest",  # <- can move through forest and hide in it
             "highway": True,  # <- can move quickly on roads
         },
     )
@@ -88,22 +89,25 @@ def basemap_fn(bbox: BBox) -> Array:
     fig, ax = plt.subplots(figsize=(20, 20), subplot_kw={"projection": ccrs.Mercator()})
     gdf.plot(ax=ax, color="black", alpha=1, edgecolor="black")
     cx.add_basemap(ax, crs=gdf.crs, source=provider, zoom="auto")
-    # remove whitespace on canvas
-    fig.canvas.draw()
     image = jnp.array(fig.canvas.renderer._renderer)  # type: ignore
     # crop image
+
     plt.close(fig)
     return image
 
 def geography_fn(bbox: BBox):
-    buildings = ox.features_from_bbox(bbox=bbox, tags=tags)
-    gdf = gpd.GeoDataFrame(buildings).set_crs("EPSG:4326").to_crs("EPSG:3857")
-    raster = raster_fn(bbox, gdf)
+    map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
+    gdf = gpd.GeoDataFrame(map_data)
+    # .clip to bbox
+    gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north))
+    gdf = gdf.to_crs("EPSG:3857")
+    # gdf = gdf.clip(box(mercator_bbox.west, mercator_bbox.south, mercator_bbox.east, mercator_bbox.north))
+    raster = raster_fn(gdf)
     basemap = basemap_fn(bbox)
-    return gdf, raster, basemap
+    return raster, basemap
 
 
-def raster_fn(bbox, gdf, shape=(1000, 1000)) -> Array:
+def raster_fn(gdf, shape=(1000, 1000)) -> Array:
     bbox = gdf.total_bounds
     t = transform.from_bounds(*bbox, *shape)  # type: ignore
     raster = jnp.array([feature_fn(t, feature, gdf) for feature in ["building", "water", "landuse"]])
@@ -112,16 +116,18 @@ def raster_fn(bbox, gdf, shape=(1000, 1000)) -> Array:
 
 def feature_fn(t, feature, gdf):
     # subset where feature is not nan
+    if feature not in gdf.columns:
+        return jnp.zeros((1000, 1000))
     gdf = gdf[~gdf[feature].isna()]
     raster = features.rasterize(gdf.geometry, out_shape=(1000, 1000), transform=t, fill=0)  # type: ignore
     return raster
 
 place = "Thun, Switzerland"
-bbox = get_bbox(place, buffer=200)
-gdf, raster, basemap = geography_fn(bbox)
+bbox = get_bbox(place, buffer=1000)
+raster, basemap = geography_fn(bbox)
 # %%
 fig, axes = plt.subplots(1, 4, figsize=(20, 20))
 for i, ax in enumerate(axes[:-1]):
     ax.imshow(raster[i], cmap="gray")
     ax.axis("off")
-axes[-1].imshow(basemap, cmap="gray")
+axes[-1].imshow(raster.any(0), cmap="gray")
