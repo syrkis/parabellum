@@ -53,10 +53,10 @@ def get_bbox(place: str, buffer) -> BBox:
 
 def basemap_fn(bbox: BBox, gdf) -> Array:
     fig, ax = plt.subplots(figsize=(20, 20), subplot_kw={"projection": ccrs.Mercator()})
-    gdf.plot(ax=ax, color="black", alpha=1, edgecolor="black")  # type: ignore
+    gdf.plot(ax=ax, color="black", alpha=0, edgecolor="black")  # type: ignore
     cx.add_basemap(ax, crs=gdf.crs, source=provider, zoom="auto") # type: ignore
     bbox = gdf.total_bounds
-    ax.set_extent([bbox[0], bbox[2], bbox[1], bbox[3]], crs=ccrs.Mercator())
+    ax.set_extent([bbox[0], bbox[2], bbox[1], bbox[3]], crs=ccrs.Mercator())  # type: ignore
     plt.axis("off")
     plt.tight_layout()
     fig.canvas.draw()
@@ -98,6 +98,6 @@ fig, axes = plt.subplots(1, 5, figsize=(20, 20))
 axes[0].imshow(terrain.land, cmap="gray")
 axes[1].imshow(terrain.water, cmap="gray")
 axes[2].imshow(terrain.forest, cmap="gray")
-axes[3].imshow(terrain.basemap)
-axes[4].imshow(terrain.land + terrain.water + terrain.forest)
-terrain.land.shape, terrain.water.shape, terrain.forest.shape, terrain.basemap.shape
+axes[3].imshow(terrain.land + terrain.water + terrain.forest)
+axes[4].imshow(terrain.basemap)
+print(terrain.land.shape, terrain.water.shape, terrain.forest.shape, terrain.basemap.shape, sep="\n")
