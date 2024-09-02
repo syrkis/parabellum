@@ -41,7 +41,7 @@ def get_coordinates(place: str) -> Coords:
     return point.latitude, point.longitude  # type: ignore
 
 
-def get_bbox(place: str, buffer: int = 1000) -> BBox:
+def get_bbox(place: str, buffer) -> BBox:
     """Get bounding box from place name in crs 4326."""
     coords = get_coordinates(place)
     north = distance(meters=buffer).destination(coords, bearing=0).latitude
@@ -64,7 +64,7 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
     plt.close(fig)
     return image
 
-def geography_fn(place, buffer=1000):
+def geography_fn(place, buffer):
     bbox = get_bbox(place, buffer)
     map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
     gdf = gpd.GeoDataFrame(map_data)
@@ -78,21 +78,21 @@ def geography_fn(place, buffer=1000):
 def raster_fn(gdf, shape) -> Array:
     bbox = gdf.total_bounds
     t = transform.from_bounds(*bbox, *shape)  # type: ignore
-    raster = jnp.array([feature_fn(t, feature, gdf) for feature in ["building", "water", "landuse"]])
+    raster = jnp.array([feature_fn(t, feature, gdf, shape) for feature in ["building", "water", "landuse"]])
     # terrain = tps.Terrain(land=raster[0], water=raster[1], forest=raster[2])
     return raster
     # return terrain
 
-def feature_fn(t, feature, gdf):
+def feature_fn(t, feature, gdf, shape):
     # subset where feature is not nan
     if feature not in gdf.columns:
-        return jnp.zeros((1000, 1000))
+        return jnp.zeros(shape)
     gdf = gdf[~gdf[feature].isna()]
-    raster = features.rasterize(gdf.geometry, out_shape=(1000, 1000), transform=t, fill=0)  # type: ignore
+    raster = features.rasterize(gdf.geometry, out_shape=shape, transform=t, fill=0)  # type: ignore
     return raster
 
 place = "Thun, Switzerland"
-terrain = geography_fn(place)
+terrain = geography_fn(place, 200)
 # %%
 fig, axes = plt.subplots(1, 5, figsize=(20, 20))
 axes[0].imshow(terrain.land, cmap="gray")
