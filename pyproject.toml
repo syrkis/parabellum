@@ -9,7 +9,7 @@ license = "MIT"
 keywords = ["warfare", "simulation", "parallel", "environment"]
 
 [tool.poetry.dependencies]
-python = "^3.11,<3.13"
+python = "^3.11,<3.12"
 pygame = "^2.5.2"
 moviepy = "^1.0.3"
 jupyterlab = "^4.2.2"
