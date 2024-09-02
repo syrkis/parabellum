@@ -91,8 +91,8 @@ def feature_fn(t, feature, gdf, shape):
     raster = features.rasterize(gdf.geometry, out_shape=shape, transform=t, fill=0)  # type: ignore
     return raster
 
-place = "Thun, Switzerland"
-terrain = geography_fn(place, 200)
+place = "Dronning Louises Bro, Copenhagen"
+terrain = geography_fn(place, 300)
 # %%
 fig, axes = plt.subplots(1, 5, figsize=(20, 20))
 axes[0].imshow(terrain.land, cmap="gray")
