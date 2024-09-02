@@ -87,7 +87,7 @@ def spawn_fn(rng: jnp.ndarray, units_spawning_sectors: jnp.ndarray,  terrain: jn
         rng, key_start, key_noise = random.split(rng, 3)
         noise = random.uniform(key_noise, (2,)) * 0.5
         idx = random.choice(key_start, sector[0].shape[0])
-        coord = jnp.array([sector[0][idx], sector[1][idx]]) 
+        coord = jnp.array([sector[0][idx], sector[1][idx]])
         spawn_positions.append(coord + noise)
     return jnp.array(spawn_positions, dtype=jnp.float32)
 
@@ -133,7 +133,7 @@ class Environment(SMAX):
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
         self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain_raster)
-        
+
 
     @partial(jax.jit, static_argnums=(0,))
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:
@@ -170,7 +170,7 @@ class Environment(SMAX):
         obs.pop("world_state")
         if not self.reset_when_done:
             for key in dones.keys():
-                dones[key] = False 
+                dones[key] = False
         return obs, state, rewards, dones, infos
 
     def get_obs_unit_list(self, state: State) -> Dict[str, chex.Array]:
@@ -215,7 +215,7 @@ class Environment(SMAX):
         own_unit_obs = get_all_self_features(state, jnp.arange(self.num_agents))
         obs = jnp.concatenate([other_unit_obs, own_unit_obs], axis=-1)
         return {agent: obs[self.agent_ids[agent]] for agent in self.agents}
-    
+
     def _our_push_units_away(
         self, pos, unit_types, firmness: float = 1.0
     ):  # copy of SMAX._push_units_away but used without state and called inside _world_step to allow more obstacles constraints
@@ -243,7 +243,7 @@ class Environment(SMAX):
         mask = jnp.zeros(self.terrain_raster.shape).at[cells[1, :], cells[0, :]].set(1)
         return ~jnp.any(jnp.logical_and(mask, self.terrain_raster))
 
-    
+
     @partial(jax.jit, static_argnums=(0,))  # replace the _world_step method
     def _world_step(  # modified version of JaxMARL's SMAX _world_step
         self,

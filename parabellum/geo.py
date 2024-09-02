@@ -16,11 +16,11 @@ import numpy as np
 from collections import namedtuple
 import jax.numpy as jnp
 import matplotlib.pyplot as plt
+from parabellum import tps
 from rasterio import features, transform
 import os
 import seaborn as sns
 import jax.numpy as jnp
-import matplotlib.pyplot as plt
 from typing import Tuple
 
 # %% Types
@@ -107,12 +107,13 @@ def geography_fn(bbox: BBox):
     return raster, basemap
 
 
-def raster_fn(gdf, shape=(1000, 1000)) -> Array:
+def raster_fn(gdf, shape=(1000, 1000)) -> tps.Terrain:
     bbox = gdf.total_bounds
     t = transform.from_bounds(*bbox, *shape)  # type: ignore
     raster = jnp.array([feature_fn(t, feature, gdf) for feature in ["building", "water", "landuse"]])
     # raster = features.rasterize(gdf.geometry, out_shape=shape, transform=t, fill=0)  # type: ignore
-    return jnp.array(raster)
+    terrain = tps.Terrain(land=raster[0], water=raster[1], forest=raster[2])
+    return terrain
 
 def feature_fn(t, feature, gdf):
     # subset where feature is not nan
@@ -123,11 +124,10 @@ def feature_fn(t, feature, gdf):
     return raster
 
 place = "Thun, Switzerland"
-bbox = get_bbox(place, buffer=1000)
+bbox = get_bbox(place, buffer=300)
 raster, basemap = geography_fn(bbox)
 # %%
-fig, axes = plt.subplots(1, 4, figsize=(20, 20))
-for i, ax in enumerate(axes[:-1]):
-    ax.imshow(raster[i], cmap="gray")
-    ax.axis("off")
-axes[-1].imshow(raster.any(0), cmap="gray")
+fig, axes = plt.subplots(1, 3, figsize=(20, 20))
+axes[0].imshow(raster.land, cmap="gray")
+axes[1].imshow(raster.water, cmap="gray")
+axes[2].imshow(raster.forest, cmap="gray")
