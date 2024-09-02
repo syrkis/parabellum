@@ -13,3 +13,4 @@ class Terrain:
     land: Array
     water: Array
     forest: Array
+    basemap: Array
