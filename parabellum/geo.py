@@ -64,6 +64,7 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
     plt.close(fig)
     return image
 
+
 def geography_fn(place, buffer):
     bbox = get_bbox(place, buffer)
     map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
@@ -79,12 +80,9 @@ def raster_fn(gdf, shape) -> Array:
     bbox = gdf.total_bounds
     t = transform.from_bounds(*bbox, *shape)  # type: ignore
     raster = jnp.array([feature_fn(t, feature, gdf, shape) for feature in ["building", "water", "landuse"]])
-    # terrain = tps.Terrain(land=raster[0], water=raster[1], forest=raster[2])
     return raster
-    # return terrain
 
 def feature_fn(t, feature, gdf, shape):
-    # subset where feature is not nan
     if feature not in gdf.columns:
         return jnp.zeros(shape)
     gdf = gdf[~gdf[feature].isna()]
@@ -100,4 +98,3 @@ axes[1].imshow(terrain.water, cmap="gray")
 axes[2].imshow(terrain.forest, cmap="gray")
 axes[3].imshow(terrain.land + terrain.water + terrain.forest)
 axes[4].imshow(terrain.basemap)
-print(terrain.land.shape, terrain.water.shape, terrain.forest.shape, terrain.basemap.shape, sep="\n")
