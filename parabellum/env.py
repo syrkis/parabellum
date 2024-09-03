@@ -9,7 +9,7 @@ from jaxmarl.environments.smax.smax_env import SMAX
 
 from typing import Tuple, Dict, cast
 from functools import partial
-from parabellum import tps, geo
+from parabellum import tps, geo, terrain_db
 
 
 @dataclass
@@ -17,7 +17,7 @@ class Scenario:
     """Parabellum scenario"""
 
     place: str
-    terrain_raster: tps.Terrain
+    terrain: tps.Terrain
     unit_starting_sectors: jnp.ndarray  # must be of size (num_units, 4) where sectors[i] = (x, y, width, height) of the ith unit's spawning sector (in % of the real map)
     unit_types: chex.Array
     num_allies: int
@@ -51,7 +51,10 @@ def make_scenario(
     enemies_type,
     n_enemies,
 ):
-    terrain = geo.geography_fn(place, size)
+    if place in terrain_db.db:
+        terrain = terrain_db.make_terrain(terrain_db.db[place], size)
+    else:
+        terrain = geo.geography_fn(place, size)
     if type(unit_starting_sectors) == list:
             default_sector = [0, 0, size, size]  # Noah feel confident that this is right. This means 50% chance. Sorry timothee if you end up here later. my bad bro.
             correct_unit_starting_sectors = []
@@ -112,7 +115,7 @@ def sectors_fn(sectors: jnp.ndarray, invalid_spawn_areas: jnp.ndarray):
 class Environment(SMAX):
 
     def __init__(self, scenario: Scenario, **kwargs):
-        map_height, map_width = scenario.terrain_raster.building.shape
+        map_height, map_width = scenario.terrain.building.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
         if "unit_type_pushable" in kwargs:
             self.unit_type_pushable = kwargs["unit_type_pushable"]
@@ -125,7 +128,7 @@ class Environment(SMAX):
         else:
             self.reset_when_done = True
         super(Environment, self).__init__(**args, walls_cause_death=False, **kwargs)
-        self.terrain_raster = scenario.terrain_raster
+        self.terrain = scenario.terrain
         self.unit_starting_sectors = scenario.unit_starting_sectors
         # self.unit_type_names = ["tinker", "tailor", "soldier", "spy"]
         # self.unit_type_health = jnp.array([100, 100, 100, 100], dtype=jnp.float32)
@@ -135,7 +138,7 @@ class Environment(SMAX):
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
-        self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain_raster.building + scenario.terrain_raster.water)
+        self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain.building + scenario.terrain.water)
         self.resolution = jnp.array(jnp.max(self.unit_type_sight_ranges), dtype=jnp.int32) * 2
         self.t = jnp.tile(jnp.linspace(0, 1, self.resolution), (2, 1))
 
@@ -160,7 +163,7 @@ class Environment(SMAX):
             time=0,
             terminal=False,
             unit_weapon_cooldowns=unit_weapon_cooldowns,
-            # terrain=self.terrain_raster,
+            # terrain=self.terrain,
         )
         state = self._push_units_away(state)  # type: ignore  could be slow
         obs = self.get_obs(state)
@@ -205,7 +208,7 @@ class Environment(SMAX):
             )
             return jax.lax.cond(
                 visible & state.unit_alive[i] & state.unit_alive[j_idx]
-                 & self.has_line_of_sight(state.unit_positions[j_idx], state.unit_positions[i], self.terrain_raster.building + self.terrain_raster.forest),
+                 & self.has_line_of_sight(state.unit_positions[j_idx], state.unit_positions[i], self.terrain.building + self.terrain.forest),
                 lambda: features,
                 lambda: empty_features,
             )
@@ -270,7 +273,6 @@ class Environment(SMAX):
             mask = jnp.where(jnp.arange(mask.shape[1]) <= maximum[1], mask.T, 0).T
             return jnp.any(mask)
 
-
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
             # The velocities below are for diagonal directions
@@ -292,7 +294,7 @@ class Environment(SMAX):
 
             #######################################################################
             ############################################ avoid going into obstacles
-            clash = raster_crossing(pos, new_pos, self.terrain_raster.building + self.terrain_raster.water)
+            clash = raster_crossing(pos, new_pos, self.terrain.building + self.terrain.water)
             new_pos = jnp.where(clash, pos, new_pos)
 
             #######################################################################
@@ -405,7 +407,7 @@ class Environment(SMAX):
 
         # units push each other
         new_pos = self._our_push_units_away(pos, state.unit_types)
-        clash = jax.vmap(raster_crossing, in_axes=(0, 0, None))(pos, new_pos, self.terrain_raster.building + self.terrain_raster.water)
+        clash = jax.vmap(raster_crossing, in_axes=(0, 0, None))(pos, new_pos, self.terrain.building + self.terrain.water)
         pos = jax.vmap(jnp.where)(clash, pos, new_pos)
         # avoid going out of bounds
         pos = jnp.maximum(

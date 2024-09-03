@@ -72,7 +72,7 @@ def geography_fn(place, buffer):
     gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north)).to_crs("EPSG:3857")
     raster = raster_fn(gdf, shape=(buffer, buffer))
     basemap = basemap_fn(bbox, gdf)
-    terrain = tps.Terrain(building=raster[0], water=raster[1], forest=raster[2], basemap=basemap)
+    terrain = tps.Terrain(building=jnp.flip(raster[0], 1), water=jnp.flip(raster[1], 1), forest=jnp.flip(raster[2], 1), basemap=jnp.flip(basemap, 1))
     return terrain
 
 
@@ -89,12 +89,15 @@ def feature_fn(t, feature, gdf, shape):
     raster = features.rasterize(gdf.geometry, out_shape=shape, transform=t, fill=0)  # type: ignore
     return raster
 
-place = "Thun, Switzerland"
-terrain = geography_fn(place, 800)
+
 # %%
-fig, axes = plt.subplots(1, 5, figsize=(20, 20))
-axes[0].imshow(terrain.building, cmap="gray")
-axes[1].imshow(terrain.water, cmap="gray")
-axes[2].imshow(terrain.forest, cmap="gray")
-axes[3].imshow(terrain.building + terrain.water + terrain.forest)
-axes[4].imshow(terrain.basemap)
+if __name__ == "__main__":
+    place = "Thun, Switzerland"
+    terrain = geography_fn(place, 300)
+    
+    fig, axes = plt.subplots(1, 5, figsize=(20, 20))
+    axes[0].imshow(terrain.building, cmap="gray")
+    axes[1].imshow(terrain.water, cmap="gray")
+    axes[2].imshow(terrain.forest, cmap="gray")
+    axes[3].imshow(terrain.building + terrain.water + terrain.forest)
+    axes[4].imshow(terrain.basemap)
