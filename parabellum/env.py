@@ -137,6 +137,8 @@ class Environment(SMAX):
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
         self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain_raster.building + scenario.terrain_raster.water)
+        self.resolution = self.terrain_raster.building.shape[0] + self.terrain_raster.building.shape[1]
+        self.t = jnp.tile(jnp.linspace(0, 1, self.resolution), (2, self.resolution))
 
 
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]: # type: ignore
@@ -203,7 +205,8 @@ class Environment(SMAX):
                 < self.unit_type_sight_ranges[state.unit_types[i]]
             )
             return jax.lax.cond(
-                visible & state.unit_alive[i] & state.unit_alive[j_idx] & self.has_line_of_sight(state.unit_positions[j_idx], state.unit_positions[i], self.terrain_raster.building + self.terrain_raster.forest),
+                visible & state.unit_alive[i] & state.unit_alive[j_idx]
+                 & self.has_line_of_sight(state.unit_positions[j_idx], state.unit_positions[i], self.terrain_raster.building + self.terrain_raster.forest),
                 lambda: features,
                 lambda: empty_features,
             )
@@ -239,12 +242,16 @@ class Environment(SMAX):
         )
         return jnp.where(self.unit_type_pushable[unit_types][:, None], unit_positions, pos)
 
-    def has_line_of_sight(self, source, target, raster_input):
-        resolution = raster_input.shape[0] + raster_input.shape[1]
-        t = jnp.tile(jnp.linspace(0, 1, resolution), (2, resolution))
-        cells = jnp.array(source[:, jnp.newaxis] * t + (1-t) * target[:, jnp.newaxis], dtype=jnp.int32)
+    def has_line_of_sight(self, source, target, raster_input):  # this is tooooo slow TODO: make it fast
+        # we could compute this for units in sight only using a switch
+
+        cells = jnp.array(source[:, jnp.newaxis] * self.t + (1-self.t) * target[:, jnp.newaxis], dtype=jnp.int32)
+
         mask = jnp.zeros(raster_input.shape).at[cells[1, :], cells[0, :]].set(1)
-        return ~jnp.any(jnp.logical_and(mask, raster_input))
+
+        flag = ~jnp.any(jnp.logical_and(mask, raster_input))
+
+        return flag
 
 
     @partial(jax.jit, static_argnums=(0,))  # replace the _world_step method
@@ -334,9 +341,6 @@ class Environment(SMAX):
                 )
                 & state.unit_alive[idx]
                 & state.unit_alive[attacked_idx]
-                & self.has_line_of_sight(state.unit_positions[idx], state.unit_positions[attacked_idx], self.terrain_raster.building
-                    + self.terrain_raster.forest
-                )
             )
             attack_valid = attack_valid & (idx != attacked_idx)
             attack_valid = attack_valid & (state.unit_weapon_cooldowns[idx] <= 0.0)
@@ -458,7 +462,7 @@ if __name__ == "__main__":
 
     n_allies = 10
     scenario_kwargs = {"allies_type": 0, "n_allies": n_allies, "enemies_type": 0, "n_enemies": n_allies,
-                        "place": "Vesterbro, Copenhagen, Denmark", "size": 100, "unit_starting_sectors":
+                        "place": "Vesterbro, Copenhagen, Denmark", "size": 256, "unit_starting_sectors":
                             [([i for i in range(n_allies)], [0.,0.45,0.1,0.1]), ([n_allies+i for i in range(n_allies)], [0.8,0.5,0.1,0.1])]}
     scenario = make_scenario(**scenario_kwargs)
     env = Environment(scenario)
