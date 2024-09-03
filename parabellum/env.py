@@ -42,7 +42,6 @@ class State:
     terminal: bool
 
 
-
 def make_scenario(
     place,
     size,
@@ -137,8 +136,8 @@ class Environment(SMAX):
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
         self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain_raster.building + scenario.terrain_raster.water)
-        self.resolution = self.terrain_raster.building.shape[0] + self.terrain_raster.building.shape[1]
-        self.t = jnp.tile(jnp.linspace(0, 1, self.resolution), (2, self.resolution))
+        self.resolution = jnp.array(jnp.max(self.unit_type_sight_ranges), dtype=jnp.int32) * 2
+        self.t = jnp.tile(jnp.linspace(0, 1, self.resolution), (2, 1))
 
 
     def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]: # type: ignore
@@ -242,8 +241,8 @@ class Environment(SMAX):
         )
         return jnp.where(self.unit_type_pushable[unit_types][:, None], unit_positions, pos)
 
-    def has_line_of_sight(self, source, target, raster_input):  # this is tooooo slow TODO: make it fast
-        # we could compute this for units in sight only using a switch
+    def has_line_of_sight(self, source, target, raster_input):  
+        # suppose that target is in sight_range of source, otherwise the line of sight might miss some cells
 
         cells = jnp.array(source[:, jnp.newaxis] * self.t + (1-self.t) * target[:, jnp.newaxis], dtype=jnp.int32)
 
@@ -462,33 +461,29 @@ if __name__ == "__main__":
 
     n_allies = 10
     scenario_kwargs = {"allies_type": 0, "n_allies": n_allies, "enemies_type": 0, "n_enemies": n_allies,
-                        "place": "Vesterbro, Copenhagen, Denmark", "size": 256, "unit_starting_sectors":
+                        "place": "Vesterbro, Copenhagen, Denmark", "size": 100, "unit_starting_sectors":
                             [([i for i in range(n_allies)], [0.,0.45,0.1,0.1]), ([n_allies+i for i in range(n_allies)], [0.8,0.5,0.1,0.1])]}
     scenario = make_scenario(**scenario_kwargs)
     env = Environment(scenario)
     rng, reset_rng = random.split(random.PRNGKey(0))
     reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)
-    state_seq = []
+    state_seq = []   
+    
 
-
-    from tqdm import tqdm
     import time
     step = vmap(jit(env.step))
     tic = time.time()
-    for i in tqdm(range(10)):
+    for i in range(10):
         rng, act_rng, step_rng = random.split(rng, 3)
         act_key = random.split(act_rng, (len(env.agents), n_envs))
-        print(tic - time.time())
         act = {
             a: vmap(env.action_space(a).sample)(act_key[i])
             for i, a in enumerate(env.agents)
         }
-        print(tic - time.time())
         step_key = random.split(step_rng, n_envs)
-        print(tic - time.time())
         state_seq.append((step_key, state, act))
-        print(tic - time.time())
         obs, state, reward, done, infos = step(step_key, state, act)
-        print(tic - time.time())
         tic = time.time()
+
+    
