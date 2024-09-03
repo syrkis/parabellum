@@ -1,4 +1,4 @@
-from .env import Environment, Scenario, scenarios, make_scenario, State
+from .env import Environment, Scenario, make_scenario, State
 from .vis import Visualizer, Skin
 from .gun import bullet_fn
 from . import vis
@@ -14,7 +14,6 @@ __all__ = [
     "tps",
     "Environment",
     "Scenario",
-    "scenarios",
     "make_scenario",
     "State",
     "Visualizer",

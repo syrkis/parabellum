@@ -27,7 +27,7 @@ Coords = Tuple[float, float]
 BBox = namedtuple("BBox", ["north", "south", "east", "west"])  # type: ignore
 
 # %% Constants
-provider = cx.providers.Stadia.StamenTerrainBackground(  # type: ignore
+provider = cx.providers.Stadia.StamenTerrain(  # type: ignore
     api_key="86d0d32b-d2fe-49af-8db8-f7751f58e83f"
 )
 provider["url"] = provider["url"] + "?api_key={api_key}"
@@ -72,7 +72,7 @@ def geography_fn(place, buffer):
     gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north)).to_crs("EPSG:3857")
     raster = raster_fn(gdf, shape=(buffer, buffer))
     basemap = basemap_fn(bbox, gdf)
-    terrain = tps.Terrain(land=raster[0], water=raster[1], forest=raster[2], basemap=basemap)
+    terrain = tps.Terrain(building=raster[0], water=raster[1], forest=raster[2], basemap=basemap)
     return terrain
 
 
@@ -89,12 +89,12 @@ def feature_fn(t, feature, gdf, shape):
     raster = features.rasterize(gdf.geometry, out_shape=shape, transform=t, fill=0)  # type: ignore
     return raster
 
-place = "Dronning Louises Bro, Copenhagen"
-terrain = geography_fn(place, 300)
+place = "Thun, Switzerland"
+terrain = geography_fn(place, 800)
 # %%
 fig, axes = plt.subplots(1, 5, figsize=(20, 20))
-axes[0].imshow(terrain.land, cmap="gray")
+axes[0].imshow(terrain.building, cmap="gray")
 axes[1].imshow(terrain.water, cmap="gray")
 axes[2].imshow(terrain.forest, cmap="gray")
-axes[3].imshow(terrain.land + terrain.water + terrain.forest)
+axes[3].imshow(terrain.building + terrain.water + terrain.forest)
 axes[4].imshow(terrain.basemap)

@@ -10,7 +10,7 @@ from jaxtyping import Array
 # %% Dataclasses
 @dataclass
 class Terrain:
-    land: Array
+    building: Array
     water: Array
     forest: Array
     basemap: Array
