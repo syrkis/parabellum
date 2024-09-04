@@ -104,8 +104,8 @@ def sectors_fn(sectors: jnp.ndarray, invalid_spawn_areas: jnp.ndarray):
     spawning_sectors = []
     for sector in sectors:
         coordx, coordy = jnp.array(sector[0] * width, dtype=jnp.int32), jnp.array(sector[1] * height, dtype=jnp.int32)
-        sector = (invalid_spawn_areas[coordy : coordy + int(sector[3] * height), coordx : coordx + int(sector[2] * width)] == 0)
-        valid = jnp.nonzero(sector.T)
+        sector = (invalid_spawn_areas[coordx : coordx + int(sector[2] * width), coordx : coordx + int(sector[3] * height)] == 0)
+        valid = jnp.nonzero(sector)
         if valid[0].shape[0] == 0:
             raise ValueError(f"Sector {sector} only contains invalid spawn areas.")
         spawning_sectors.append(jnp.array(valid) + jnp.array([coordx, coordy]).reshape((2, -1) ))
@@ -245,14 +245,10 @@ class Environment(SMAX):
         return jnp.where(self.unit_type_pushable[unit_types][:, None], unit_positions, pos)
 
     def has_line_of_sight(self, source, target, raster_input):  
-        # suppose that target is in sight_range of source, otherwise the line of sight might miss some cells
-
+        # suppose that the target is in sight_range of source, otherwise the line of sight might miss some cells
         cells = jnp.array(source[:, jnp.newaxis] * self.t + (1-self.t) * target[:, jnp.newaxis], dtype=jnp.int32)
-
-        mask = jnp.zeros(raster_input.shape).at[cells[1, :], cells[0, :]].set(1)
-
+        mask = jnp.zeros(raster_input.shape).at[cells[0, :], cells[1, :]].set(1)
         flag = ~jnp.any(jnp.logical_and(mask, raster_input))
-
         return flag
 
 
@@ -264,14 +260,14 @@ class Environment(SMAX):
         actions: Tuple[chex.Array, chex.Array],
     ) -> State:
         def raster_crossing(pos, new_pos, mask: jnp.ndarray):
-            pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
-            minimum = jnp.minimum(pos, new_pos)
-            maximum = jnp.maximum(pos, new_pos)
-            mask = jnp.where(jnp.arange(mask.shape[0]) >= minimum[0], mask, 0)
-            mask = jnp.where(jnp.arange(mask.shape[0]) <= maximum[0], mask, 0)
-            mask = jnp.where(jnp.arange(mask.shape[1]) >= minimum[1], mask.T, 0).T
-            mask = jnp.where(jnp.arange(mask.shape[1]) <= maximum[1], mask.T, 0).T
-            return jnp.any(mask)
+                pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
+                minimum = jnp.minimum(pos, new_pos)
+                maximum = jnp.maximum(pos, new_pos)
+                mask = jnp.where(jnp.arange(mask.shape[0]) >= minimum[0], mask.T, 0).T
+                mask = jnp.where(jnp.arange(mask.shape[0]) <= maximum[0], mask.T, 0).T
+                mask = jnp.where(jnp.arange(mask.shape[1]) >= minimum[1], mask, 0)
+                mask = jnp.where(jnp.arange(mask.shape[1]) <= maximum[1], mask, 0)
+                return jnp.any(mask)
 
         def update_position(idx, vec):
             # Compute the movements slightly strangely.

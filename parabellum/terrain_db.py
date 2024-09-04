@@ -32,11 +32,11 @@ empty_color = jnp.array([255, 255, 255, 255])
 def make_terrain(terrain_args, size):
     args = {}
     for key, lines in terrain_args.items():
-        args[key] = map_raster_map(lines, size)
+        args[key] = map_raster_map(lines, size).T
     basemap = jnp.where(args["building"][:,:,None], jnp.tile(building_color, (size, size, 1)), jnp.tile(empty_color, (size,size, 1)))
     basemap = jnp.where(args["water"][:,:,None], jnp.tile(water_color, (size, size, 1)), basemap)
     basemap = jnp.where(args["forest"][:,:,None], jnp.tile(forest_color, (size, size, 1)), basemap)
-    args["basemap"] = jnp.rot90(basemap, 2)
+    args["basemap"] = basemap
     return tps.Terrain(**args)
 
 
@@ -58,24 +58,61 @@ db = {
     "water_park": {'building': [[0., 0.5, 0.33, 0.]], "water": [[0.33, 0.5, 0.33, 0.]], "forest": [[0.66, 0.5, 0.33, 0.]]},
 }
 
+
+# %% [raw]
+#     lines = [
+#         [0.66, 0.5, 0.33, 0.], 
+#     ]
+#     size = 50
+#     raster_map = map_raster_map(lines, size)
+#     plt.imshow(np.flip(raster_map, 0))
+
 # %% [markdown]
 # # Main
+
+# %%
+def compute_astar_map(mask, goal):
+    """
+    Start from goal on a grid world to compute the shortest path to the goal from any reachable cells 
+    """
+    n = len(mask)
+    neighbors = [(-1, 0),  (0, -1), (1, 0), (0, 1)]  # N, E, S, W like in Parabellum
+    current_x = [goal[0]]
+    current_y = [goal[1]]
+    cost = 0
+    directions = np.ones(mask.shape) * -1
+    costs = np.ones(mask.shape)*(n**2)
+    costs[goal] = cost
+    while len(current_x)>0:
+        cost += 1
+        new_x = np.empty(0, dtype=int)
+        new_y = np.empty(0, dtype=int)
+        
+        for n_id, (i, j) in enumerate(neighbors):
+            neighbors_x = np.array(current_x) + i
+            neighbors_y = np.array(current_y) + j
+            inside_mask = np.where(np.logical_and(np.logical_and(neighbors_x >= 0, neighbors_x < n), np.logical_and(neighbors_y >= 0, neighbors_y < n)))
+            idxs = (neighbors_x[inside_mask], neighbors_y[inside_mask])
+            valid = np.where(np.logical_and(costs[idxs] == n**2, mask[idxs]))
+            valid_idx = inside_mask[0][valid[0]]
+            idxs = (neighbors_x[valid_idx], neighbors_y[valid_idx])
+            directions[idxs] = n_id
+            costs[idxs] = cost
+            
+            new_x = np.concatenate([new_x, neighbors_x[valid_idx]])
+            new_y = np.concatenate([new_y, neighbors_y[valid_idx]])
+                    
+        current_x, current_y = new_x, new_y
+    return np.array(directions, dtype=int), np.array(costs, dtype=int)
+
 
 # %%
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     # %%
-    terrain = make_terrain(db["water_park"], size=100)
-    plt.imshow(np.transpose(terrain.basemap, (1,0,2)))
+    terrain = make_terrain(db["F"], size=100)
+    plt.imshow(terrain.building)
 
-# %%
-
-    lines = [
-        [0.66, 0.5, 0.33, 0.], 
-    ]
-    size = 50
-    raster_map = map_raster_map(lines, size)
-    plt.imshow(np.flip(raster_map, 0))
-
-# %%
+    # %%
+    plt.imshow(terrain.basemap)

@@ -21,6 +21,7 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 import seaborn as sns
 import os
+from jax.scipy.signal import convolve
 
 # %% Types
 Coords = Tuple[float, float]
@@ -31,7 +32,12 @@ provider = cx.providers.Stadia.StamenTerrain(  # type: ignore
     api_key="86d0d32b-d2fe-49af-8db8-f7751f58e83f"
 )
 provider["url"] = provider["url"] + "?api_key={api_key}"
-tags = {"building": True, "water": True, "landuse": "forest"}  #  "road": True}
+tags = {"building": True, 
+        "water": True, 
+        "highway": True, 
+        "landuse": ["grass", "forest", "flowerbed", "greenfield", "village_green", "recreation_ground"], 
+        "leisure":"garden"
+        }  #  "road": True}
 
 
 # %% Coordinate function
@@ -71,15 +77,25 @@ def geography_fn(place, buffer):
     gdf = gpd.GeoDataFrame(map_data)
     gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north)).to_crs("EPSG:3857")
     raster = raster_fn(gdf, shape=(buffer, buffer))
-    basemap = basemap_fn(bbox, gdf)
-    terrain = tps.Terrain(building=jnp.flip(raster[0], 1), water=jnp.flip(raster[1], 1), forest=jnp.flip(raster[2], 1), basemap=jnp.flip(basemap, 1))
+    basemap = jnp.rot90(basemap_fn(bbox, gdf), 3)
+    # 0: building", 1: "water", 2: "highway", 3: "forest", 4: "garden"
+    kernel = jnp.array([
+        [1, 1, 1],
+        [1, 1, 1],
+        [1, 1, 1]
+    ])
+    trans = lambda x: jnp.rot90(x, 3)
+    terrain = tps.Terrain(building=trans(raster[0]),
+                          water=trans(raster[1] - convolve(raster[1]*raster[2], kernel, mode='same')>0),
+                          forest=trans(jnp.logical_or(raster[3], raster[4])),
+                          basemap=basemap)
     return terrain
 
 
 def raster_fn(gdf, shape) -> Array:
     bbox = gdf.total_bounds
     t = transform.from_bounds(*bbox, *shape)  # type: ignore
-    raster = jnp.array([feature_fn(t, feature, gdf, shape) for feature in ["building", "water", "landuse"]])
+    raster = jnp.array([feature_fn(t, feature, gdf, shape) for feature in tags])
     return raster
 
 def feature_fn(t, feature, gdf, shape):
@@ -101,3 +117,5 @@ if __name__ == "__main__":
     axes[2].imshow(terrain.forest, cmap="gray")
     axes[3].imshow(terrain.building + terrain.water + terrain.forest)
     axes[4].imshow(terrain.basemap)
+
+# %%
