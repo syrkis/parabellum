@@ -328,14 +328,11 @@ class Environment(SMAX):
             attacked_idx = jax.lax.select(
                 action < self.num_movement_actions, idx, attacked_idx
             )
-
-            attack_valid = (
-                (
-                    jnp.linalg.norm(
+            distance = jnp.linalg.norm(
                         state.unit_positions[idx] - state.unit_positions[attacked_idx]
                     )
-                    < self.unit_type_attack_ranges[state.unit_types[idx]]
-                )
+            attack_valid = (
+                (distance <= self.unit_type_attack_ranges[state.unit_types[idx]])
                 & state.unit_alive[idx]
                 & state.unit_alive[attacked_idx]
             )
@@ -346,6 +343,7 @@ class Environment(SMAX):
                 -self.unit_type_attacks[state.unit_types[idx]],
                 0.0,
             )
+            health_diff = jnp.where(state.unit_types[idx] == 1, health_diff * distance/self.unit_type_attack_ranges[state.unit_types[idx]], health_diff)
             # design choice based on the pysc2 randomness details.
             # See https://github.com/deepmind/pysc2/blob/master/docs/environment.md#determinism-and-randomness
 
