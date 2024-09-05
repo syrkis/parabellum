@@ -64,7 +64,7 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
     bbox = gdf.total_bounds
     ax.set_extent([bbox[0], bbox[2], bbox[1], bbox[3]], crs=ccrs.Mercator())  # type: ignore
     plt.axis("off")
-    plt.tight_layout()
+    plt.tight_layout(pad=0)
     fig.canvas.draw()
     image = jnp.array(fig.canvas.renderer._renderer)  # type: ignore
     plt.close(fig)
@@ -117,5 +117,3 @@ if __name__ == "__main__":
     axes[2].imshow(terrain.forest, cmap="gray")
     axes[3].imshow(terrain.building + terrain.water + terrain.forest)
     axes[4].imshow(terrain.basemap)
-
-# %%
