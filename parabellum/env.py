@@ -7,6 +7,8 @@ from flax.struct import dataclass
 import chex
 from jaxmarl.environments.smax.smax_env import SMAX
 
+from math import ceil
+
 from typing import Tuple, Dict, cast
 from functools import partial
 from parabellum import tps, geo, terrain_db
@@ -104,7 +106,7 @@ def sectors_fn(sectors: jnp.ndarray, invalid_spawn_areas: jnp.ndarray):
     spawning_sectors = []
     for sector in sectors:
         coordx, coordy = jnp.array(sector[0] * width, dtype=jnp.int32), jnp.array(sector[1] * height, dtype=jnp.int32)
-        sector = (invalid_spawn_areas[coordx : coordx + int(sector[2] * width), coordx : coordx + int(sector[3] * height)] == 0)
+        sector = (invalid_spawn_areas[coordx : coordx + ceil(sector[2] * width), coordx : coordx + ceil(sector[3] * height)] == 0)
         valid = jnp.nonzero(sector)
         if valid[0].shape[0] == 0:
             raise ValueError(f"Sector {sector} only contains invalid spawn areas.")
