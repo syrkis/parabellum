@@ -75,25 +75,17 @@ db = {
         "water": [{"rect":[0., 0.8, 0.1, 0.05]}, {"rect": [0.2, 0.8, 0.8, 0.05]}], 
         "forest": [{"rect": [0., 0., 1., 0.2]}]
     },
+    "triangle":  {'building': [{"line": [0.33, 0., 0., 1.]}, {"line": [0.66, 0., 0., 1.]}], 'water': None, 'forest': None},
 }
 
 # %% [raw]
-#     lines = [
-#         [0.66, 0.5, 0.33, 0.], 
-#     ]
-#     size = 50
-#     raster_map = map_raster_map(lines, size)
-#     plt.imshow(np.flip(raster_map, 0))
-
-# %% [raw]
-#     
-#     size = 50
+#     import matplotlib.pyplot as plt
+#     size = 100
 #     raster = np.zeros((size, size))
-#     rect = [0., 0.75, 0.2, 0.1]
-#     raster = map_raster_from_rect(raster, rect, size)
-#     rect = [0.3, 0.75, 0.7, 0.1]
-#     raster = map_raster_from_rect(raster, rect, size)
-#
+#     line = [0.33, 0., 0., 1.]
+#     raster = map_raster_from_line(raster, line, size)
+#     line = [0.66, 0., 0., 1.]
+#     raster = map_raster_from_line(raster, line, size)
 #     plt.imshow(np.flip(raster, 0))
 
 # %% [markdown]
