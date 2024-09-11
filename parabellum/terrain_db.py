@@ -97,7 +97,7 @@ if __name__ == "__main__":
 
     # %%
     terrain = make_terrain(db["water_park"], size=50)
-    plt.imshow(terrain.building)
+    plt.imshow(terrain.water[:40])
 
     # %%
     plt.imshow(terrain.basemap)
