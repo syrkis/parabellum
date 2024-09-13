@@ -91,7 +91,7 @@ def spawn_fn(rng: jnp.ndarray, units_spawning_sectors):
     spawn_positions = []
     for sector in units_spawning_sectors:
         rng, key_start, key_noise = random.split(rng, 3)
-        noise = random.uniform(key_noise, (2,)) * 0.5
+        noise = 0.25 + random.uniform(key_noise, (2,)) * 0.5
         idx = random.choice(key_start, sector[0].shape[0])
         coord = jnp.array([sector[0][idx], sector[1][idx]])
         spawn_positions.append(coord + noise)
@@ -106,7 +106,7 @@ def sectors_fn(sectors: jnp.ndarray, invalid_spawn_areas: jnp.ndarray):
     spawning_sectors = []
     for sector in sectors:
         coordx, coordy = jnp.array(sector[0] * width, dtype=jnp.int32), jnp.array(sector[1] * height, dtype=jnp.int32)
-        sector = (invalid_spawn_areas[coordx : coordx + ceil(sector[2] * width), coordx : coordx + ceil(sector[3] * height)] == 0)
+        sector = (invalid_spawn_areas[coordx : coordx + ceil(sector[2] * width), coordy : coordy + ceil(sector[3] * height)] == 0)
         valid = jnp.nonzero(sector)
         if valid[0].shape[0] == 0:
             raise ValueError(f"Sector {sector} only contains invalid spawn areas.")
@@ -252,7 +252,6 @@ class Environment(SMAX):
         mask = jnp.zeros(raster_input.shape).at[cells[0, :], cells[1, :]].set(1)
         flag = ~jnp.any(jnp.logical_and(mask, raster_input))
         return flag
-
 
     @partial(jax.jit, static_argnums=(0,))  # replace the _world_step method
     def _world_step(  # modified version of JaxMARL's SMAX _world_step
