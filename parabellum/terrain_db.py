@@ -76,17 +76,28 @@ db = {
         "forest": [{"rect": [0., 0., 1., 0.2]}]
     },
     "triangle":  {'building': [{"line": [0.33, 0., 0., 1.]}, {"line": [0.66, 0., 0., 1.]}], 'water': None, 'forest': None},
+    "u_shape": {
+        'building': [], 
+        "water": [{"rect": [0.15, 0.2, 0.1, 0.5]}, {"rect": [0.4, 0.2, 0.1, 0.5]}, {"rect": [0.2, 0.2, 0.25, 0.1]}], 
+        "forest": []
+    },
 }
 
 # %% [raw]
 #     import matplotlib.pyplot as plt
-#     size = 100
+#     size = 50
 #     raster = np.zeros((size, size))
-#     line = [0.33, 0., 0., 1.]
-#     raster = map_raster_from_line(raster, line, size)
-#     line = [0.66, 0., 0., 1.]
-#     raster = map_raster_from_line(raster, line, size)
-#     plt.imshow(np.flip(raster, 0))
+#     rect = [0.2, 0.3, 0.05, 0.4]
+#     raster = map_raster_from_rect(raster, rect, size)
+#     rect = [0.4, 0.3, 0.05, 0.4]
+#     raster = map_raster_from_rect(raster, rect, size)
+#     rect = [0.2, 0.3, 0.25, 0.05]
+#     raster = map_raster_from_rect(raster, rect, size)
+#     rect = [0.2, 0.7, 0.25, 0.05]
+#     raster = map_raster_from_rect(raster, rect, size)
+#     rect = [0.6, 0.3, 0.4, 0.45]
+#     raster = map_raster_from_rect(raster, rect, size)
+#     plt.imshow(jnp.rot90(raster))
 
 # %% [markdown]
 # # Main
@@ -96,11 +107,10 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     # %%
-    terrain = make_terrain(db["water_park"], size=50)
-    plt.imshow(terrain.water[:40])
+    terrain = make_terrain(db["u_shape"], size=50)
 
     # %%
-    plt.imshow(terrain.basemap)
+    plt.imshow(jnp.rot90(terrain.basemap))
 
 # %%
 
