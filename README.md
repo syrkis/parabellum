@@ -1,6 +1,6 @@
 # Parabellum
 
-Ultra-scalable JaxMARL based warfare simulation engine developed with Armasuisse funding.
+Ultra-scalable JaxMARL based warfare simulation engine.
 
 [![Documentation Status](https://readthedocs.org/projects/parabellum/badge/?version=latest)](https://parabellum.readthedocs.io/en/latest/?badge=latest)
 
