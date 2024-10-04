@@ -58,17 +58,22 @@ def make_scenario(
     else:
         terrain = geo.geography_fn(place, size)
     if type(unit_starting_sectors) == list:
-            default_sector = [0, 0, size, size]  # Noah feel confident that this is right. This means 50% chance. Sorry timothee if you end up here later. my bad bro.
-            correct_unit_starting_sectors = []
-            for i in range(n_allies+n_enemies):
-                selected_sector = None
-                for unit_ids, sector in unit_starting_sectors:
-                    if i in unit_ids:
-                        selected_sector = sector
-                if selected_sector is None:
-                    selected_sector = default_sector
-                correct_unit_starting_sectors.append(selected_sector)
-            unit_starting_sectors = correct_unit_starting_sectors
+        default_sector = [
+            0,
+            0,
+            size,
+            size,
+        ]  # Noah feel confident that this is right. This means 50% chance. Sorry timothee if you end up here later. my bad bro.
+        correct_unit_starting_sectors = []
+        for i in range(n_allies + n_enemies):
+            selected_sector = None
+            for unit_ids, sector in unit_starting_sectors:
+                if i in unit_ids:
+                    selected_sector = sector
+            if selected_sector is None:
+                selected_sector = default_sector
+            correct_unit_starting_sectors.append(selected_sector)
+        unit_starting_sectors = correct_unit_starting_sectors
     if type(allies_type) == int:
         allies = [allies_type] * n_allies
     else:
@@ -82,7 +87,30 @@ def make_scenario(
         enemies = enemies_type
     unit_types = jnp.array(allies + enemies, dtype=jnp.uint8)
     return Scenario(
-        place, terrain, unit_starting_sectors, unit_types, n_allies, n_enemies  # type: ignore
+        place,
+        terrain,
+        unit_starting_sectors,  # type: ignore
+        unit_types,
+        n_allies,
+        n_enemies,
+    )
+
+
+def scenario_fn(place):
+    # scenario function for Noah, cos the one above is confusing
+    terrain = geo.geography_fn(place)
+    num_allies = 10
+    num_enemies = 10
+    unit_types = jnp.array([0] * num_allies + [1] * num_enemies, dtype=jnp.uint8)
+    # start units in default sectors
+    unit_starting_sectors = jnp.array([[0, 0, 1, 1]] * (num_allies + num_enemies))
+    return Scenario(
+        place=place,
+        terrain=terrain,
+        unit_starting_sectors=unit_starting_sectors,
+        unit_types=unit_types,
+        num_allies=num_allies,
+        num_enemies=num_enemies,
     )
 
 
@@ -105,17 +133,27 @@ def sectors_fn(sectors: jnp.ndarray, invalid_spawn_areas: jnp.ndarray):
     width, height = invalid_spawn_areas.shape
     spawning_sectors = []
     for sector in sectors:
-        coordx, coordy = jnp.array(sector[0] * width, dtype=jnp.int32), jnp.array(sector[1] * height, dtype=jnp.int32)
-        sector = (invalid_spawn_areas[coordx : coordx + ceil(sector[2] * width), coordy : coordy + ceil(sector[3] * height)] == 0)
+        coordx, coordy = (
+            jnp.array(sector[0] * width, dtype=jnp.int32),
+            jnp.array(sector[1] * height, dtype=jnp.int32),
+        )
+        sector = (
+            invalid_spawn_areas[
+                coordx : coordx + ceil(sector[2] * width),
+                coordy : coordy + ceil(sector[3] * height),
+            ]
+            == 0
+        )
         valid = jnp.nonzero(sector)
         if valid[0].shape[0] == 0:
             raise ValueError(f"Sector {sector} only contains invalid spawn areas.")
-        spawning_sectors.append(jnp.array(valid) + jnp.array([coordx, coordy]).reshape((2, -1) ))
+        spawning_sectors.append(
+            jnp.array(valid) + jnp.array([coordx, coordy]).reshape((2, -1))
+        )
     return spawning_sectors
 
 
 class Environment(SMAX):
-
     def __init__(self, scenario: Scenario, **kwargs):
         map_height, map_width = scenario.terrain.building.shape
         args = dict(scenario=scenario, map_height=map_height, map_width=map_width)
@@ -123,7 +161,7 @@ class Environment(SMAX):
             self.unit_type_pushable = kwargs["unit_type_pushable"]
             del kwargs["unit_type_pushable"]
         else:
-            self.unit_type_pushable = jnp.array([1,1,0,0,0,1])
+            self.unit_type_pushable = jnp.array([1, 1, 0, 0, 0, 1])
         if "reset_when_done" in kwargs:
             self.reset_when_done = kwargs["reset_when_done"]
             del kwargs["reset_when_done"]
@@ -136,16 +174,24 @@ class Environment(SMAX):
         # self.unit_type_health = jnp.array([100, 100, 100, 100], dtype=jnp.float32)
         # self.unit_type_damage = jnp.array([10, 10, 10, 10], dtype=jnp.float32)
         self.scenario = scenario
-        self.unit_type_velocities = jnp.array([3.15, 2.25, 4.13, 3.15, 4.13, 3.15])/2.5 if "unit_type_velocities" not in kwargs else kwargs["unit_type_velocities"]
+        self.unit_type_velocities = (
+            jnp.array([3.15, 2.25, 4.13, 3.15, 4.13, 3.15]) / 2.5
+            if "unit_type_velocities" not in kwargs
+            else kwargs["unit_type_velocities"]
+        )
         self.unit_type_attack_blasts = jnp.zeros((3,), dtype=jnp.float32)  # TODO: add
         self.max_steps = 200
         self._push_units_away = lambda state, firmness=1: state  # overwrite push units
-        self.spawning_sectors = sectors_fn(self.unit_starting_sectors, scenario.terrain.building + scenario.terrain.water)
-        self.resolution = jnp.array(jnp.max(self.unit_type_sight_ranges), dtype=jnp.int32) * 2
+        self.spawning_sectors = sectors_fn(
+            self.unit_starting_sectors,
+            scenario.terrain.building + scenario.terrain.water,
+        )
+        self.resolution = (
+            jnp.array(jnp.max(self.unit_type_sight_ranges), dtype=jnp.int32) * 2
+        )
         self.t = jnp.tile(jnp.linspace(0, 1, self.resolution), (2, 1))
 
-
-    def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]: # type: ignore
+    def reset(self, rng: chex.PRNGKey) -> Tuple[Dict[str, chex.Array], State]:  # type: ignore
         """Environment-specific reset."""
         unit_positions = spawn_fn(rng, self.spawning_sectors)
         unit_teams = jnp.zeros((self.num_agents,))
@@ -169,20 +215,21 @@ class Environment(SMAX):
         )
         state = self._push_units_away(state)  # type: ignore  could be slow
         obs = self.get_obs(state)
+        # remove world_state from obs
         world_state = self.get_world_state(state)
-        # obs["world_state"] = jax.lax.stop_gradient(world_state)
+        obs["world_state"] = jax.lax.stop_gradient(world_state)
         return obs, state
 
-    def step_env(self, rng, state: State, action: Array):  # type: ignore
-        obs, state, rewards, dones, infos = super().step_env(rng, state, action)
+        # def step_env(self, rng, state: State, action: Array):  # type: ignore
+        # obs, state, rewards, dones, infos = super().step_env(rng, state, action)
         # delete world_state from obs
-        obs.pop("world_state")
-        if not self.reset_when_done:
-            for key in dones.keys():
-                dones[key] = False
-        return obs, state, rewards, dones, infos
+        # obs.pop("world_state")
+        # if not self.reset_when_done:
+        # for key in dones.keys():
+        # dones[key] = False
+        # return obs, state, rewards, dones, infos
 
-    def get_obs_unit_list(self, state: State) -> Dict[str, chex.Array]: # type: ignore
+    def get_obs_unit_list(self, state: State) -> Dict[str, chex.Array]:  # type: ignore
         """Applies observation function to state."""
 
         def get_features(i, j):
@@ -192,9 +239,7 @@ class Environment(SMAX):
             # The observation is such that allies are always first
             # so for units in the second team we count in reverse.
             j = jax.lax.cond(
-                i < self.num_allies,
-                lambda: j,
-                lambda: self.num_agents - j - 1,
+                i < self.num_allies, lambda: j, lambda: self.num_agents - j - 1
             )
             offset = jax.lax.cond(i < self.num_allies, lambda: 1, lambda: -1)
             j_idx = jax.lax.cond(
@@ -209,8 +254,14 @@ class Environment(SMAX):
                 < self.unit_type_sight_ranges[state.unit_types[i]]
             )
             return jax.lax.cond(
-                visible & state.unit_alive[i] & state.unit_alive[j_idx]
-                 & self.has_line_of_sight(state.unit_positions[j_idx], state.unit_positions[i], self.terrain.building + self.terrain.forest),
+                visible
+                & state.unit_alive[i]
+                & state.unit_alive[j_idx]
+                & self.has_line_of_sight(
+                    state.unit_positions[j_idx],
+                    state.unit_positions[i],
+                    self.terrain.building + self.terrain.forest,
+                ),
                 lambda: features,
                 lambda: empty_features,
             )
@@ -244,11 +295,16 @@ class Environment(SMAX):
             pos
             + firmness * jnp.sum(delta_matrix * overlap_term[:, :, None], axis=1) / 2
         )
-        return jnp.where(self.unit_type_pushable[unit_types][:, None], unit_positions, pos)
+        return jnp.where(
+            self.unit_type_pushable[unit_types][:, None], unit_positions, pos
+        )
 
-    def has_line_of_sight(self, source, target, raster_input):  
+    def has_line_of_sight(self, source, target, raster_input):
         # suppose that the target is in sight_range of source, otherwise the line of sight might miss some cells
-        cells = jnp.array(source[:, jnp.newaxis] * self.t + (1-self.t) * target[:, jnp.newaxis], dtype=jnp.int32)
+        cells = jnp.array(
+            source[:, jnp.newaxis] * self.t + (1 - self.t) * target[:, jnp.newaxis],
+            dtype=jnp.int32,
+        )
         mask = jnp.zeros(raster_input.shape).at[cells[0, :], cells[1, :]].set(1)
         flag = ~jnp.any(jnp.logical_and(mask, raster_input))
         return flag
@@ -261,14 +317,14 @@ class Environment(SMAX):
         actions: Tuple[chex.Array, chex.Array],
     ) -> State:
         def raster_crossing(pos, new_pos, mask: jnp.ndarray):
-                pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
-                minimum = jnp.minimum(pos, new_pos)
-                maximum = jnp.maximum(pos, new_pos)
-                mask = jnp.where(jnp.arange(mask.shape[0]) >= minimum[0], mask.T, 0).T
-                mask = jnp.where(jnp.arange(mask.shape[0]) <= maximum[0], mask.T, 0).T
-                mask = jnp.where(jnp.arange(mask.shape[1]) >= minimum[1], mask, 0)
-                mask = jnp.where(jnp.arange(mask.shape[1]) <= maximum[1], mask, 0)
-                return jnp.any(mask)
+            pos, new_pos = pos.astype(jnp.int32), new_pos.astype(jnp.int32)
+            minimum = jnp.minimum(pos, new_pos)
+            maximum = jnp.maximum(pos, new_pos)
+            mask = jnp.where(jnp.arange(mask.shape[0]) >= minimum[0], mask.T, 0).T
+            mask = jnp.where(jnp.arange(mask.shape[0]) <= maximum[0], mask.T, 0).T
+            mask = jnp.where(jnp.arange(mask.shape[1]) >= minimum[1], mask, 0)
+            mask = jnp.where(jnp.arange(mask.shape[1]) <= maximum[1], mask, 0)
+            return jnp.any(mask)
 
         def update_position(idx, vec):
             # Compute the movements slightly strangely.
@@ -285,13 +341,17 @@ class Environment(SMAX):
             )
             # avoid going out of bounds
             new_pos = jnp.maximum(
-                jnp.minimum(new_pos, jnp.array([self.map_width-1, self.map_height-1])),
+                jnp.minimum(
+                    new_pos, jnp.array([self.map_width - 1, self.map_height - 1])
+                ),
                 jnp.zeros((2,)),
             )
 
             #######################################################################
             ############################################ avoid going into obstacles
-            clash = raster_crossing(pos, new_pos, self.terrain.building + self.terrain.water)
+            clash = raster_crossing(
+                pos, new_pos, self.terrain.building + self.terrain.water
+            )
             new_pos = jnp.where(clash, pos, new_pos)
 
             #######################################################################
@@ -330,8 +390,8 @@ class Environment(SMAX):
                 action < self.num_movement_actions, idx, attacked_idx
             )
             distance = jnp.linalg.norm(
-                        state.unit_positions[idx] - state.unit_positions[attacked_idx]
-                    )
+                state.unit_positions[idx] - state.unit_positions[attacked_idx]
+            )
             attack_valid = (
                 (distance <= self.unit_type_attack_ranges[state.unit_types[idx]])
                 & state.unit_alive[idx]
@@ -344,22 +404,28 @@ class Environment(SMAX):
                 -self.unit_type_attacks[state.unit_types[idx]],
                 0.0,
             )
-            health_diff = jnp.where(state.unit_types[idx] == 1, health_diff * distance/self.unit_type_attack_ranges[state.unit_types[idx]], health_diff)
+            health_diff = jnp.where(
+                state.unit_types[idx] == 1,
+                health_diff
+                * distance
+                / self.unit_type_attack_ranges[state.unit_types[idx]],
+                health_diff,
+            )
             # design choice based on the pysc2 randomness details.
             # See https://github.com/deepmind/pysc2/blob/master/docs/environment.md#determinism-and-randomness
 
             #########################################################
             ############################### Add bystander health diff
 
-            bystander_idxs = bystander_fn(attacked_idx)  # TODO: use
-            bystander_valid = (
-                jnp.where(attack_valid, bystander_idxs, jnp.zeros((self.num_agents,)))
-                .astype(jnp.bool_)  # type: ignore
-                .astype(jnp.float32)
-            )
-            bystander_health_diff = (
-                bystander_valid * -self.unit_type_attacks[state.unit_types[idx]]
-            )
+            # bystander_idxs = bystander_fn(attacked_idx)  # TODO: use
+            # bystander_valid = (
+            #     jnp.where(attack_valid, bystander_idxs, jnp.zeros((self.num_agents,)))
+            #     .astype(jnp.bool_)  # type: ignore
+            #     .astype(jnp.float32)
+            # )
+            # bystander_health_diff = (
+            #     bystander_valid * -self.unit_type_attacks[state.unit_types[idx]]
+            # )
 
             #########################################################
             #########################################################
@@ -383,26 +449,28 @@ class Environment(SMAX):
                 health_diff,
                 attacked_idx,
                 cooldown_diff,
-                (bystander_health_diff, bystander_idxs),
+                # (bystander_health_diff, bystander_idxs),
             )
 
         def perform_agent_action(idx, action, key):
             movement_action, attack_action = action
             new_pos = update_position(idx, movement_action)
-            health_diff, attacked_idxes, cooldown_diff, (bystander) = (
-                update_agent_health(idx, attack_action, key)
+            health_diff, attacked_idxes, cooldown_diff = update_agent_health(
+                idx, attack_action, key
             )
 
-            return new_pos, (health_diff, attacked_idxes), cooldown_diff, bystander
+            return new_pos, (health_diff, attacked_idxes), cooldown_diff
 
         keys = jax.random.split(key, num=self.num_agents)
-        pos, (health_diff, attacked_idxes), cooldown_diff, bystander = jax.vmap(
+        pos, (health_diff, attacked_idxes), cooldown_diff = jax.vmap(
             perform_agent_action
         )(jnp.arange(self.num_agents), actions, keys)
 
         # units push each other
         new_pos = self._our_push_units_away(pos, state.unit_types)
-        clash = jax.vmap(raster_crossing, in_axes=(0, 0, None))(pos, new_pos, self.terrain.building + self.terrain.water)
+        clash = jax.vmap(raster_crossing, in_axes=(0, 0, None))(
+            pos, new_pos, self.terrain.building + self.terrain.water
+        )
         pos = jax.vmap(jnp.where)(clash, pos, new_pos)
         # avoid going out of bounds
         pos = jnp.maximum(
@@ -437,8 +505,8 @@ class Environment(SMAX):
         #########################################################
         ############################ subtracting bystander health
 
-        _, bystander_health_diff = bystander
-        unit_health -= bystander_health_diff.sum(axis=0)  # might be axis=1
+        # _, bystander_health_diff = bystander
+        # unit_health -= bystander_health_diff.sum(axis=0)  # might be axis=1
 
         #########################################################
         #########################################################
@@ -452,23 +520,32 @@ class Environment(SMAX):
         )
         return state
 
+
 if __name__ == "__main__":
     n_envs = 4
 
-
     n_allies = 10
-    scenario_kwargs = {"allies_type": 0, "n_allies": n_allies, "enemies_type": 0, "n_enemies": n_allies,
-                        "place": "Vesterbro, Copenhagen, Denmark", "size": 100, "unit_starting_sectors":
-                            [([i for i in range(n_allies)], [0.,0.45,0.1,0.1]), ([n_allies+i for i in range(n_allies)], [0.8,0.5,0.1,0.1])]}
+    scenario_kwargs = {
+        "allies_type": 0,
+        "n_allies": n_allies,
+        "enemies_type": 0,
+        "n_enemies": n_allies,
+        "place": "Vesterbro, Copenhagen, Denmark",
+        "size": 100,
+        "unit_starting_sectors": [
+            ([i for i in range(n_allies)], [0.0, 0.45, 0.1, 0.1]),
+            ([n_allies + i for i in range(n_allies)], [0.8, 0.5, 0.1, 0.1]),
+        ],
+    }
     scenario = make_scenario(**scenario_kwargs)
     env = Environment(scenario)
     rng, reset_rng = random.split(random.PRNGKey(0))
     reset_key = random.split(reset_rng, n_envs)
     obs, state = vmap(env.reset)(reset_key)
-    state_seq = []   
-    
+    state_seq = []
 
     import time
+
     step = vmap(jit(env.step))
     tic = time.time()
     for i in range(10):
@@ -482,5 +559,3 @@ if __name__ == "__main__":
         state_seq.append((step_key, state, act))
         obs, state, reward, done, infos = step(step_key, state, act)
         tic = time.time()
-
-    
