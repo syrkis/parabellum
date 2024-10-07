@@ -96,9 +96,9 @@ def make_scenario(
     )
 
 
-def scenario_fn(place):
+def scenario_fn(place, size):
     # scenario function for Noah, cos the one above is confusing
-    terrain = geo.geography_fn(place)
+    terrain = geo.geography_fn(place, size)
     num_allies = 10
     num_enemies = 10
     unit_types = jnp.array([0] * num_allies + [1] * num_enemies, dtype=jnp.uint8)
