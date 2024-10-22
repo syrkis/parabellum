@@ -70,9 +70,9 @@ db = {
     {"line":[0.75, 0.25, 0., 0.2]}, {"line":[0.75, 0.55, 0., 0.19]},
     {"line":[0.6, 0.25, 0.15, 0.]}], 'water': None, 'forest': None},
     "playground": {'building': [{"line":[0.5, 0.5, 0.5, 0.]}], 'water': None, 'forest': None},
-    "water_park": {
-        'building': [{"line":[0.5, 0.5, 0.5, 0.]}], 
-        "water": [{"rect":[0., 0.8, 0.1, 0.05]}, {"rect": [0.2, 0.8, 0.8, 0.05]}], 
+    "playground2": {
+        'building': [], 
+        "water": [{"rect":[0., 0.8, 0.1, 0.1]}, {"rect": [0.2, 0.8, 0.8, 0.1]}], 
         "forest": [{"rect": [0., 0., 1., 0.2]}]
     },
     "triangle":  {'building': [{"line": [0.33, 0., 0., 1.]}, {"line": [0.66, 0., 0., 1.]}], 'water': None, 'forest': None},
@@ -81,23 +81,38 @@ db = {
         "water": [{"rect": [0.15, 0.2, 0.1, 0.5]}, {"rect": [0.4, 0.2, 0.1, 0.5]}, {"rect": [0.2, 0.2, 0.25, 0.1]}], 
         "forest": []
     },
+    "bridges": {
+        'building': [], 
+        "water": [{"rect": [0.475, 0., 0.05, 0.1]}, {"rect": [0.475, 0.15, 0.05, 0.575]}, {"rect": [0.475, 0.775, 0.05, 1.]},
+                  {"rect": [0., 0.475, 0.225, 0.05]}, {"rect": [0.275, 0.475, 0.45, 0.05]}, {"rect": [0.775, 0.475, 0.23, 0.05]}], 
+        "forest": [{"rect": [0.1, 0.625, 0.275, 0.275]}, {"rect": [0.725, 0., 0.3, 0.275]}, ]
+    }
 }
 
 # %% [raw]
 #     import matplotlib.pyplot as plt
-#     size = 50
+#     size = 100
 #     raster = np.zeros((size, size))
-#     rect = [0.2, 0.3, 0.05, 0.4]
+#     rect = [0.475, 0., 0.05, 0.1]
 #     raster = map_raster_from_rect(raster, rect, size)
-#     rect = [0.4, 0.3, 0.05, 0.4]
+#     rect = [0.475, 0.15, 0.05, 0.575]
 #     raster = map_raster_from_rect(raster, rect, size)
-#     rect = [0.2, 0.3, 0.25, 0.05]
+#     rect = [0.475, 0.775, 0.05, 1.]
 #     raster = map_raster_from_rect(raster, rect, size)
-#     rect = [0.2, 0.7, 0.25, 0.05]
+#
+#     rect = [0., 0.475, 0.225, 0.05]
 #     raster = map_raster_from_rect(raster, rect, size)
-#     rect = [0.6, 0.3, 0.4, 0.45]
+#     rect = [0.275, 0.475, 0.45, 0.05]
 #     raster = map_raster_from_rect(raster, rect, size)
-#     plt.imshow(jnp.rot90(raster))
+#     rect = [0.775, 0.475, 0.23, 0.05]
+#     raster = map_raster_from_rect(raster, rect, size)
+#
+#     rect = [0.1, 0.625, 0.275, 0.275]
+#     raster = map_raster_from_rect(raster, rect, size)
+#     rect = [0.725, 0., 0.3, 0.275]
+#     raster = map_raster_from_rect(raster, rect, size)
+#
+#     plt.imshow(raster[::-1, :])
 
 # %% [markdown]
 # # Main
@@ -107,11 +122,13 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     # %%
-    terrain = make_terrain(db["u_shape"], size=50)
+    terrain = make_terrain(db["bridges"], size=100)
 
     # %%
     plt.imshow(jnp.rot90(terrain.basemap))
-
-# %%
+    bl = (39.5, 5)
+    tr = (44.5, 10)
+    plt.scatter(bl[0], 49-bl[1])
+    plt.scatter(tr[0], 49-tr[1], marker="+")
 
 # %%

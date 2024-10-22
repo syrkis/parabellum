@@ -179,6 +179,7 @@ class Environment(SMAX):
         obs.pop("world_state")
         if not self.reset_when_done:
             for key in dones.keys():
+                infos[key] = dones[key]
                 dones[key] = False
         return obs, state, rewards, dones, infos
 
