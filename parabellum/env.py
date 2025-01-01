@@ -3,11 +3,10 @@
 import jax.numpy as jnp
 import jax
 from jax import random, Array, vmap, jit
-from flax.struct import dataclass
+from chex import dataclass
 import chex
-from jaxmarl.environments.smax.smax_env import SMAX
-
 from math import ceil
+
 
 from typing import Tuple, Dict, cast
 from functools import partial
@@ -223,20 +222,21 @@ class Environment(SMAX):
         # def step_env(self, rng, state: State, action: Array):  # type: ignore
         # obs, state, rewards, dones, infos = super().step_env(rng, state, action)
         # delete world_state from obs
-<<<<<<< HEAD
+        # <<<<<<< HEAD
         # obs.pop("world_state")
         # if not self.reset_when_done:
         # for key in dones.keys():
         # dones[key] = False
         # return obs, state, rewards, dones, infos
-=======
+        # =======
         obs.pop("world_state")
         if not self.reset_when_done:
             for key in dones.keys():
                 infos[key] = dones[key]
                 dones[key] = False
         return obs, state, rewards, dones, infos
->>>>>>> aeb13033e57083cc512a60f8f60a3db47a65ac32
+
+    # >>>>>>> aeb13033e57083cc512a60f8f60a3db47a65ac32
 
     def get_obs_unit_list(self, state: State) -> Dict[str, chex.Array]:  # type: ignore
         """Applies observation function to state."""

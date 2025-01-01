@@ -3,13 +3,10 @@
 # by: Noah Syrkis
 
 # %% Imports
-import parabellum as pb
-from jax import random, vmap, jit
 from tqdm import tqdm
 
 # %% Constants
 place = "Vesterbro, Copenhagen, Denmark"
-scenario = pb.env.scenario_fn(place)
 env = pb.Environment(scenario=scenario)
 
 # %% Initialize

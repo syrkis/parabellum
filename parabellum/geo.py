@@ -19,7 +19,7 @@ import geopandas as gpd
 from collections import namedtuple
 from typing import Tuple
 import matplotlib.pyplot as plt
-import seaborn as sns
+from cachier import cachier
 import os
 from jax.scipy.signal import convolve
 
@@ -79,6 +79,7 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
     return image
 
 
+@cachier()
 def geography_fn(place, buffer=400):
     bbox = get_bbox(place, buffer)
     map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
@@ -128,25 +129,25 @@ def feature_fn(t, feature, gdf, shape):
 
 
 # %%
-def normalize(x):
-    return (np.array(x) - m) / (M - m)
+# def normalize(x):
+#     return (np.array(x) - m) / (M - m)
 
 
-def get_bridges(gdf):
-    xmin, ymin, xmax, ymax = gdf.total_bounds
-    m = np.array([xmin, ymin])
-    M = np.array([xmax, ymax])
+# def get_bridges(gdf):
+#     xmin, ymin, xmax, ymax = gdf.total_bounds
+#     m = np.array([xmin, ymin])
+#     M = np.array([xmax, ymax])
 
-    bridges = {}
-    for idx, bridge in gdf[gdf["bridge"] == "yes"].iterrows():
-        if type(bridge["name"]) == str:
-            bridges[idx[1]] = {
-                "name": bridge["name"],
-                "coords": normalize(
-                    [bridge.geometry.centroid.x, bridge.geometry.centroid.y]
-                ),
-            }
-    return bridges
+#     bridges = {}
+#     for idx, bridge in gdf[gdf["bridge"] == "yes"].iterrows():
+#         if type(bridge["name"]) == str:
+#             bridges[idx[1]] = {
+#                 "name": bridge["name"],
+#                 "coords": normalize(
+#                     [bridge.geometry.centroid.x, bridge.geometry.centroid.y]
+#                 ),
+#             }
+#     return bridges
 
 
 """

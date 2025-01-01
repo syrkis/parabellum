@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "parabellum"
-version = "0.0.0"
+version = "0.4.0"
 description = "Parabellum environment for parallel warfare simulation"
 authors = ["Noah Syrkis <desk@syrkis.com>"]
 readme = "README.md"
@@ -10,28 +10,26 @@ keywords = ["warfare", "simulation", "parallel", "environment"]
 
 [tool.poetry.dependencies]
 python = "^3.11,<3.12"
-pygame = "^2.5.2"
 moviepy = "^1.0.3"
 jupyterlab = "^4.2.2"
-darkdetect = "^0.8.0"
 poetry = "^1.8.3"
 tqdm = "^4.66.4"
-jaxmarl = "0.0.3"
 geopy = "^2.4.1"
 osmnx = "2.0.0b0"
 rasterio = "^1.3.10"
-seaborn = "^0.13.2"
-numpy = "<2"
 ipykernel = "^6.29.5"
 folium = "^0.17.0"
 pandas = "^2.2.2"
 contextily = "^1.6.0"
 opencv-python = "^4.10.0.84"
 einops = "^0.8.0"
-jax = "0.4.17"
 jaxtyping = "^0.2.33"
 cartopy = "^0.23.0"
 stadiamaps = "^3.2.1"
+jax = "^0.4.38"
+cachier = "^3.1.2"
+esch = { path = "../esch" }
+equinox = "^0.11.11"
 
 [tool.poetry.group.docs]
 optional = true
@@ -55,8 +53,3 @@ build-backend = "poetry_dynamic_versioning.backend"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-
-[tool.pytest.ini_options]
-minversion = "6.0"
-addopts = "--cov=parabellum --cov-report=term-missing"
-testpaths = ["test"]
