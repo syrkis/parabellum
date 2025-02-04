@@ -1,16 +1,16 @@
 [tool.poetry]
 name = "parabellum"
-version = "0.4.0"
+version = "0.5.2"
 description = "Parabellum environment for parallel warfare simulation"
 authors = ["Noah Syrkis <desk@syrkis.com>"]
 readme = "README.md"
 repository = "https://github.com/syrkis/parabellum"
 license = "MIT"
 keywords = ["warfare", "simulation", "parallel", "environment"]
+homepage = "https://virian.org/parabellum"
 
 [tool.poetry.dependencies]
 python = "^3.11,<3.12"
-moviepy = "^1.0.3"
 jupyterlab = "^4.2.2"
 poetry = "^1.8.3"
 tqdm = "^4.66.4"
@@ -21,35 +21,23 @@ ipykernel = "^6.29.5"
 folium = "^0.17.0"
 pandas = "^2.2.2"
 contextily = "^1.6.0"
-opencv-python = "^4.10.0.84"
 einops = "^0.8.0"
 jaxtyping = "^0.2.33"
 cartopy = "^0.23.0"
 stadiamaps = "^3.2.1"
 jax = "^0.4.38"
 cachier = "^3.1.2"
-esch = { path = "../esch" }
 equinox = "^0.11.11"
-
-[tool.poetry.group.docs]
-optional = true
-
-[tool.poetry.group.docs.dependencies]
-sphinx = "^7.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.2"
 pytest-cov = "^5.0.0"
-
-[tool.poetry-dynamic-versioning]
-enable = true
-vcs = "git"
-style = "semver"
-
-[build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
-build-backend = "poetry_dynamic_versioning.backend"
+esch = { path = "../../esch" }
 
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
+
+
+[tool.ruff]
+line-length = 120
