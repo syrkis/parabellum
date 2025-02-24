@@ -5,7 +5,7 @@
 # Imports ###################################################################
 import jax.numpy as jnp
 import numpy as np
-from jax import lax, random, tree, vmap, debug
+from jax import lax, random
 from PIL import Image
 
 import parabellum as pb
@@ -31,12 +31,8 @@ def anim(seq, scale=8, width=10):  # animate positions
     imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=100, loop=0)
 
 
-seq = (random.normal(rng, (100, 100, 2))).cumsum(axis=0).astype(int) + 100
-anim(seq, scale=10, width=200)
-exit()
 # %% Main #####################################################################
 rngs = random.split(rng, 100)
 obs, state = env.reset(key)
 state, seq = lax.scan(step, state, rngs)
-
-# anim(seq.unit_position.astype(int), width=env.cfg.size, scale=8)
+anim(seq.unit_position.astype(int), width=env.cfg.size, scale=8)
