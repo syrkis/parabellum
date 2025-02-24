@@ -5,22 +5,16 @@ from .gun import bullet_fn
 # from . import vis
 from . import terrain_db
 
-# from . import env
+from . import aid
 from . import tps
 from . import geo
-# from .run import run
+from . import env
 
 __all__ = [
-    # "env",
     "terrain_db",
-    # "vis",
     "tps",
     "geo",
-    # "Environment",
-    # "Scenario",
-    # "make_scenario",
-    # "State",
-    # "Visualizer",
-    # "Skin",
     "bullet_fn",
+    "env",
+    "aid",
 ]

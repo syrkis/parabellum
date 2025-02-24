@@ -1,4 +1,5 @@
 **/__pycache__
+**/*.gif
 *.mp4
 dist/
 **/.DS_Store

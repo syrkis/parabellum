@@ -3,101 +3,40 @@
 # by: Noah Syrkis
 
 # Imports ###################################################################
-from typing import Tuple
-from dataclasses import field
-
-import equinox as eqx
-
-# import esch
 import jax.numpy as jnp
-from chex import dataclass
-from jax import lax, random
-from jaxtyping import Array
+import numpy as np
+from jax import lax, random, tree, vmap, debug
+from PIL import Image
 
-# import parabellum as pb
+import parabellum as pb
 
-# %% Types ####################################################################
-Obs = Array
+# %% Config #################################################################
+env = pb.env.Env(cfg=(cfg := pb.env.Conf()))
+rng, key = random.split(random.PRNGKey(0))
 
-
-# %% Dataclasses ################################################################
-@dataclass
-class State:
-    unit_position: Array
-    unit_health: Array
-    unit_cooldown: Array
+# %% Functions ###############################################################
 
 
-@dataclass
-class Conf:
-    place: str = "Copenhagen, Denmark"
-    size: int = 100
-    knn: int = 5
-    num_allies: int = 10
-    num_enemies: int = 10
-    num_agents: int = 20
-    unit_types: Array = field(default_factory=lambda: jnp.zeros(20).astype(jnp.int8))
-    line_of_sight: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_radiuses: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_health: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_attacks: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_attack_ranges: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_sight_ranges: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_velocities: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_weapon_cooldowns: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+def step(state, rng):
+    moving = random.normal(rng, (env.cfg.num_agents, 2))
+    action = pb.env.Action(health=None, moving=moving)
+    obs, state = env.step(rng, state, action)
+    return state, state
 
 
-@dataclass
-class Env:
-    cfg: Conf
-
-    def reset(self, rng: Array) -> Tuple[Obs, State]:
-        return init_fn(rng, self.cfg, self)
-
-    def step(self, rng, state, action) -> Tuple[Obs, State]:
-        return obs_fn(self.cfg, state), step_fn(self, state, action)
+def anim(seq, scale=8, width=10):  # animate positions
+    idxs = jnp.concat((jnp.arange(seq.shape[0]).repeat(seq.shape[1])[..., None], seq.reshape(-1, 2)), axis=1).T  #
+    imgs = np.array(jnp.zeros((seq.shape[0], width, width)).at[*idxs].set(255)).astype(np.uint8)  # setting color
+    imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs]  # type: ignore
+    imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=100, loop=0)
 
 
-@dataclass
-class Action:
-    health: Array  # attack/heal
-    moving: Array  # move agents
-
-
-# %% Functions ################################################################
-# @eqx.filter_jit
-def init_fn(rng: Array, cfg: Conf, env: Env) -> Tuple[Obs, State]:  # initialize -----
-    keys, num_agents = random.split(rng), env.cfg.num_allies + env.cfg.num_enemies  # meta ----
-    types = random.choice(keys[0], jnp.arange(env.cfg.unit_type_attacks.size), (num_agents,))  #
-    pos = random.uniform(keys[1], (num_agents, 2), minval=0, maxval=cfg.size)  # pos -
-    health = jnp.take(env.cfg.unit_type_health, types)  # health of agents by type for starting
-    state = State(unit_position=pos, unit_health=health, unit_cooldown=jnp.zeros(num_agents))  # state --
-    return obs_fn(cfg, state), state  # return observation and state of agents --
-
-
-# @eqx.filter_jit
-def obs_fn(cfg: Conf, state: State) -> Obs:  # return infoabout neighbors ---
-    distances = jnp.linalg.norm(state.unit_position[:, None] - state.unit_position, axis=-1)  # all dist --
-    dist, idxs = lax.approx_min_k(distances, cfg.knn)  # dists and idx
-    directions = jnp.take(state.unit_position, idxs, axis=0) - state.unit_position[:, None]  # direction --
-    obs = jnp.stack([idxs, dist, state.unit_health[idxs], cfg.unit_types[idxs]], axis=-1)  # --
-    mask = dist < cfg.unit_type_sight_ranges[cfg.unit_types][..., None]  # mask for removing hidden -
-    return jnp.concat([obs, directions], axis=-1) * mask[..., None]  # an observation -
-
-
-@eqx.filter_jit
-def step_fn(env: Env, state: State, action: Action) -> State:  # update agents ---
-    pos = state.unit_position + action.moving * env.cfg.unit_type_velocities[env.cfg.unit_types][..., None]
-    hp = state.unit_health + action.health * env.cfg.unit_type_attacks[env.cfg.unit_types][..., None]  #
-    return State(unit_position=pos, unit_health=hp, unit_cooldown=state.unit_cooldown)  # return -
-
-
-def render_fn(env: Env, state: State) -> None:  # render the state of the agents ---
-    pass  # render the state of the agents -----------------------------------------
-
-
+seq = (random.normal(rng, (100, 100, 2))).cumsum(axis=0).astype(int) + 100
+anim(seq, scale=10, width=200)
+exit()
 # %% Main #####################################################################
-env = Env(cfg=(cfg := Conf()))
-rng = random.PRNGKey(0)
-obs, state = env.reset(rng)
-print(obs, state)
+rngs = random.split(rng, 100)
+obs, state = env.reset(key)
+state, seq = lax.scan(step, state, rngs)
+
+# anim(seq.unit_position.astype(int), width=env.cfg.size, scale=8)
