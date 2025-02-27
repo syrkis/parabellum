@@ -1,12 +1,12 @@
 [tool.poetry]
 name = "parabellum"
-version = "0.5.4"
+version = "0.5.7"
 description = "Parabellum environment for parallel warfare simulation"
 authors = ["Noah Syrkis <desk@syrkis.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "^3.11,<3.12"
 jupyterlab = "^4.2.2"
 poetry = "^1.8.3"
 tqdm = "^4.66.4"

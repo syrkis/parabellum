@@ -7,16 +7,15 @@ import jax.numpy as jnp
 import numpy as np
 from jax import lax, random
 from PIL import Image
-
 import parabellum as pb
+
 
 # %% Config #################################################################
 env = pb.env.Env(cfg=(cfg := pb.env.Conf()))
 rng, key = random.split(random.PRNGKey(0))
 
+
 # %% Functions ###############################################################
-
-
 def step(state, rng):
     moving = random.normal(rng, (env.cfg.num_agents, 2))
     action = pb.env.Action(health=None, moving=moving)
@@ -32,7 +31,8 @@ def anim(seq, scale=8, width=10):  # animate positions
 
 
 # %% Main #####################################################################
-rngs = random.split(rng, 100)
 obs, state = env.reset(key)
-state, seq = lax.scan(step, state, rngs)
-anim(seq.unit_position.astype(int), width=env.cfg.size, scale=8)
+print(obs)
+# rngs = random.split(rng, 100)
+# state, seq = lax.scan(step, state, rngs)
+# anim(seq.unit_position.astype(int), width=env.cfg.size, scale=8)

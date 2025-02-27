@@ -8,11 +8,15 @@ from chex import dataclass
 from typing import Tuple
 from dataclasses import field
 import equinox as eqx
-from einops import rearrange
 
 
 # %% Types ####################################################################
-Obs = Array
+@dataclass
+class Obs:
+    dist: Array
+
+
+# Obs = Array
 
 
 # %% Dataclasses ################################################################
@@ -31,7 +35,7 @@ class Conf:
     num_allies: int = 4
     num_enemies: int = 4
     num_agents: int = 8
-    unit_types: Array = field(default_factory=lambda: jnp.zeros(20).astype(jnp.int8))
+    unit_types: Array = field(default_factory=lambda: jnp.zeros(8).astype(jnp.int8))
     line_of_sight: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
     unit_type_radiuses: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
     unit_type_health: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
@@ -72,13 +76,9 @@ def init_fn(rng: Array, cfg: Conf, env: Env) -> Tuple[Obs, State]:  # initialize
 
 # @eqx.filter_jit
 def obs_fn(cfg: Conf, state: State) -> Obs:  # return info about neighbors ---
-    return jnp.zeros((state.unit_position.shape[0], cfg.knn, 5))
     distances = jnp.linalg.norm(state.unit_position[:, None] - state.unit_position, axis=-1)  # all dist --
-    dist, idxs = lax.approx_min_k(distances, cfg.knn)  # dists and idx
-    directions = jnp.take(state.unit_position, idxs, axis=0) - state.unit_position[:, None]  # direction --
-    obs = jnp.stack([idxs, dist, state.unit_health[idxs], cfg.unit_types[idxs]], axis=-1)  # --
-    mask = dist < cfg.unit_type_sight_ranges[cfg.unit_types][..., None]  # mask for removing hidden -
-    return jnp.concat([obs, directions], axis=-1) * mask[..., None]  # an observation -
+    mask = distances < cfg.unit_type_sight_ranges[cfg.unit_types][..., None]  # mask for removing hidden -
+    return Obs(dist=jnp.where(mask, distances, jnp.inf)[0])
 
 
 #
