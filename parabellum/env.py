@@ -93,8 +93,9 @@ def obs_fn(env, state: State) -> Obs:  # return info about neighbors ---
 # @eqx.filter_jit
 def step_fn(env: Env, state: State, action: Action) -> State:  # update agents ---
     new_pos = state.unit_position + action.moving
-    mask = ((new_pos < 0).any(axis=-1) | (new_pos >= env.cfg.size).any(axis=-1))[..., None]
-    pos = jnp.where(mask, state.unit_position, new_pos)
+    bounds = ((new_pos < 0).any(axis=-1) | (new_pos >= env.cfg.size).any(axis=-1))[..., None]
+    builds = (env.scene.terrain.building[*new_pos.astype(jnp.int32).T] > 0)[..., None]
+    pos = jnp.where(bounds | builds, state.unit_position, new_pos)  # use old pos if new is not valid
     return State(unit_position=pos, unit_health=state.unit_health, unit_cooldown=state.unit_cooldown)  # return -
 
 

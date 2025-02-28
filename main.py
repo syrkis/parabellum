@@ -26,13 +26,14 @@ def step(state, rng):
 
 def anim(env, seq, scale=8, width=10):  # animate positions
     idxs = jnp.concat((jnp.arange(seq.shape[0]).repeat(seq.shape[1])[..., None], seq.reshape(-1, 2)), axis=1).T  #
-    imgs = np.array(repeat(env.scene.terrain.building, "... -> t ...", t=seq.shape[0]).at[*idxs].set(1)) * 255.0
+    imgs = np.array(repeat(env.scene.terrain.building, "... -> t ...", t=seq.shape[0]).at[*idxs].set(0.5)) * 255.0
     imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs]  # type: ignore
-    imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=100, loop=0)
+    imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=10, loop=0)
 
 
 # %% Main #####################################################################
 obs, state = env.reset(key)
-rngs = random.split(rng, 100)
+rngs = random.split(rng, 200)
 state, seq = lax.scan(step, state, rngs)
 anim(env, seq.unit_position.astype(int), width=env.cfg.size, scale=8)
+#
