@@ -48,6 +48,15 @@ class Conf:  # TODO: add water, trees, etc in terrain
 @dataclass
 class Scene:
     terrain: Terrain
+    unit_team: Array = field(default_factory=lambda: jnp.array([0, 0, 0, 0, 1, 1, 1, 1]))
+    unit_type: Array = field(default_factory=lambda: jnp.array([0, 0, 0, 0, 1, 1, 1, 1]))
+    unit_type_radiuses: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+    unit_type_health: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+    unit_type_attacks: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+    unit_type_attack_ranges: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+    unit_type_sight_ranges: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+    unit_type_velocities: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+    unit_type_weapon_cooldowns: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
 
 
 @dataclass
