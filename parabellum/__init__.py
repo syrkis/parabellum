@@ -6,13 +6,11 @@ from .gun import bullet_fn
 from . import terrain_db
 
 from . import aid
-from . import tps
 from . import geo
 from . import env
 
 __all__ = [
     "terrain_db",
-    "tps",
     "geo",
     "bullet_fn",
     "env",

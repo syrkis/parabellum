@@ -3,23 +3,21 @@
 # by: Noah Syrkis
 
 import jax.numpy as jnp
-from jax import random, Array, lax
+from jax import random, Array
 from chex import dataclass
 from typing import Tuple
 from dataclasses import field
 import equinox as eqx
+from parabellum.geo import geography_fn
+from parabellum.aid import Terrain
 
 
-# %% Types ####################################################################
+# %% Dataclasses ################################################################
 @dataclass
 class Obs:
     dist: Array
 
 
-# Obs = Array
-
-
-# %% Dataclasses ################################################################
 @dataclass
 class State:
     unit_position: Array
@@ -28,7 +26,7 @@ class State:
 
 
 @dataclass
-class Conf:
+class Conf:  # TODO: add water, trees, etc in terrain
     place: str = "Copenhagen, Denmark"
     size: int = 100
     knn: int = 5
@@ -36,6 +34,7 @@ class Conf:
     num_enemies: int = 4
     num_agents: int = 8
     unit_types: Array = field(default_factory=lambda: jnp.zeros(8).astype(jnp.int8))
+    unit_team: Array = field(default_factory=lambda: jnp.array([0, 0, 0, 0, 1, 1, 1, 1]))
     line_of_sight: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
     unit_type_radiuses: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
     unit_type_health: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
@@ -47,8 +46,18 @@ class Conf:
 
 
 @dataclass
+class Scene:
+    terrain: Terrain
+
+
+@dataclass
 class Env:
     cfg: Conf
+    scene: Scene
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.scene = Scene(terrain=geography_fn(self.cfg.place, buffer=500))
 
     def reset(self, rng: Array) -> Tuple[Obs, State]:
         return init_fn(rng, self.cfg, self)

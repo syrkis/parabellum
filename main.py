@@ -5,7 +5,7 @@
 # Imports ###################################################################
 import jax.numpy as jnp
 import numpy as np
-from jax import lax, random
+from jax import random
 from PIL import Image
 import parabellum as pb
 
@@ -32,7 +32,7 @@ def anim(seq, scale=8, width=10):  # animate positions
 
 # %% Main #####################################################################
 obs, state = env.reset(key)
-print(obs)
+print(env.scene.terrain.water)
 # rngs = random.split(rng, 100)
 # state, seq = lax.scan(step, state, rngs)
 # anim(seq.unit_position.astype(int), width=env.cfg.size, scale=8)

@@ -3,16 +3,14 @@
 # by: Noah Syrkis
 
 # %% Imports
-from parabellum import tps
-import rasterio
 from rasterio import features, transform
+import datetime
 from geopy.geocoders import Nominatim
 from geopy.distance import distance
 import contextily as cx
 import jax.numpy as jnp
 import cartopy.crs as ccrs
 from jaxtyping import Array
-import numpy as np
 from shapely import box
 import osmnx as ox
 import geopandas as gpd
@@ -20,8 +18,8 @@ from collections import namedtuple
 from typing import Tuple
 import matplotlib.pyplot as plt
 from cachier import cachier
-import os
 from jax.scipy.signal import convolve
+from parabellum.aid import Terrain
 
 # %% Types
 Coords = Tuple[float, float]
@@ -80,24 +78,18 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
 
 
 @cachier()
-def geography_fn(place, buffer=400):
+def geography_fn(place, buffer=350):
     bbox = get_bbox(place, buffer)
     map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
     gdf = gpd.GeoDataFrame(map_data)
-    gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north)).to_crs(
-        "EPSG:3857"
-    )
+    gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north)).to_crs("EPSG:3857")
     raster = raster_fn(gdf, shape=(buffer, buffer))
     basemap = jnp.rot90(basemap_fn(bbox, gdf), 3)
-    # 0: building", 1: "water", 2: "highway", 3: "forest", 4: "garden"
     kernel = jnp.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
     trans = lambda x: jnp.rot90(x, 3)
-    # <<<<<<< HEAD
-    terrain = tps.Terrain(
+    terrain = Terrain(
         building=trans(raster[0]),
-        water=trans(
-            raster[1] - convolve(raster[1] * raster[2], kernel, mode="same") > 0
-        ),
+        water=trans(raster[1] - convolve(raster[1] * raster[2], kernel, mode="same") > 0),
         forest=trans(jnp.logical_or(raster[3], raster[4])),
         basemap=basemap,
     )
