@@ -5,7 +5,6 @@ from .gun import bullet_fn
 # from . import vis
 from . import terrain_db
 
-from . import tim
 from . import aid
 from . import geo
 from . import env
@@ -16,5 +15,4 @@ __all__ = [
     "bullet_fn",
     "env",
     "aid",
-    "tim",
 ]
