@@ -24,9 +24,20 @@ stadiamaps = "^3.2.1"
 cachier = "^3.1.2"
 equinox = "^0.11.11"
 jax = "^0.5.0"
+gymnax = "^0.0.8"
+evosax = "^0.1.6"
+distrax = "^0.1.5"
+optax = "^0.2.4"
+flax = "^0.10.4"
+numpy = "^2.2.3"
+brax = "^0.12.1"
+wandb = "^0.19.7"
+flashbax = "^0.1.2"
+navix = "^0.7.0"
 
 [tool.poetry.group.dev.dependencies]
 esch = { path = "../../esch" }
+purejaxrl = { path = "../purejaxrl" }
 
 [build-system]
 requires = ["poetry-core"]

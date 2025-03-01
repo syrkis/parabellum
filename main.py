@@ -9,7 +9,7 @@ from jax import random, lax
 from PIL import Image
 from einops import repeat
 import parabellum as pb
-
+from purejaxrl import ppo
 
 # %% Config #################################################################
 env = pb.env.Env(cfg=(cfg := pb.env.Conf()))
@@ -34,6 +34,7 @@ def anim(env, seq, scale=8, width=10):  # animate positions
 # %% Main #####################################################################
 obs, state = env.reset(key)
 rngs = random.split(rng, 200)
-state, seq = lax.scan(step, state, rngs)
-anim(env, seq.unit_position.astype(int), width=env.cfg.size, scale=8)
+print(dir(ppo))
+# state, seq = lax.scan(step, state, rngs)
+# anim(env, seq.unit_position.astype(int), width=env.cfg.size, scale=8)
 #

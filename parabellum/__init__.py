@@ -1,13 +1,7 @@
 # from .env import Environment, Scenario, make_scenario, State
 # from .vis import Visualizer, Skin
+from . import aid, env, geo, terrain_db
 from .gun import bullet_fn
-
-# from . import vis
-from . import terrain_db
-
-from . import aid
-from . import geo
-from . import env
 
 __all__ = [
     "terrain_db",

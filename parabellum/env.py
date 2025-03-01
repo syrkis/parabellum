@@ -13,11 +13,6 @@ from parabellum.aid import Terrain
 
 # %% Dataclasses ################################################################
 @dataclass
-class Obs:
-    dist: Array
-
-
-@dataclass
 class State:
     unit_position: Array
     unit_health: Array
@@ -35,7 +30,7 @@ class Conf:  # TODO: add water, trees, etc in terrain
     unit_type_damage: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
     unit_type_reload: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
     unit_type_reach: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_sight: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
+    unit_type_sight: Array = field(default_factory=lambda: jnp.array([10, 1, 1]))
     unit_type_speed: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
 
 
@@ -45,6 +40,11 @@ class Scene:
     unit_types: Array
     unit_teams: Array
     num_agents: int
+
+
+@dataclass
+class Obs:
+    dist: Array
 
 
 @dataclass
