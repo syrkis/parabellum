@@ -19,7 +19,7 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 from cachier import cachier
 from jax.scipy.signal import convolve
-from parabellum.aid import Terrain
+from parabellum.types import Terrain
 
 # %% Types
 Coords = Tuple[float, float]
@@ -78,7 +78,7 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
 
 
 @cachier()
-def geography_fn(place, buffer=350):
+def geography_fn(place, buffer=350) -> Terrain:
     bbox = get_bbox(place, buffer)
     map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
     gdf = gpd.GeoDataFrame(map_data)

@@ -1,7 +1,7 @@
 # %%
 import numpy as np
 import jax.numpy as jnp
-from parabellum.aid import Terrain
+from parabellum.types import Terrain
 
 
 # %%

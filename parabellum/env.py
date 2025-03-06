@@ -2,103 +2,76 @@
 #   parabellum env
 # by: Noah Syrkis
 
+# % Imports
 import jax.numpy as jnp
-from jax import random, Array
-from chex import dataclass
+from jax import random, Array, lax
 from typing import Tuple
-from dataclasses import field
 from parabellum.geo import geography_fn
-from parabellum.aid import Terrain
+from parabellum.types import Action, State, Obs, Scene
+import equinox as eqx
 
 
-# %% Dataclasses ################################################################
-@dataclass
-class State:
-    unit_position: Array
-    unit_health: Array
-    unit_cooldown: Array
-
-
-@dataclass
-class Conf:  # TODO: add water, trees, etc in terrain
-    place: str = "Copenhagen, Denmark"
-    size: int = 100
-    knn: int = 5
-    num_allies: int = 4
-    num_enemies: int = 4
-    unit_type_health: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_damage: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_reload: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_reach: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-    unit_type_sight: Array = field(default_factory=lambda: jnp.array([10, 1, 1]))
-    unit_type_speed: Array = field(default_factory=lambda: jnp.array([1, 1, 1]))
-
-
-@dataclass
-class Scene:
-    terrain: Terrain
-    unit_types: Array
-    unit_teams: Array
-    num_agents: int
-
-
-@dataclass
-class Obs:
-    dist: Array
-
-
-@dataclass
+# %% Dataclass ################################################################
 class Env:
-    cfg: Conf
-    scene: Scene
-
     def __init__(self, cfg):
         self.cfg = cfg
-        terrain = geography_fn(self.cfg.place, buffer=cfg.size)
-        num_agents = cfg.num_allies + cfg.num_enemies
-        unit_types = jnp.zeros(num_agents).astype(jnp.int32)
-        unit_teams = jnp.concat((jnp.zeros(cfg.num_allies), jnp.ones(cfg.num_enemies))).astype(jnp.int32)
-        self.scene = Scene(terrain=terrain, unit_types=unit_types, unit_teams=unit_teams, num_agents=num_agents)
 
-    def reset(self, rng: Array) -> Tuple[Obs, State]:
-        return init_fn(rng, self)
+    def reset(self, rng: Array, scene: Scene) -> Tuple[Obs, State]:
+        return init_fn(rng, self, scene)
 
-    def step(self, rng, state, action) -> Tuple[Obs, State]:
-        return obs_fn(self, state), step_fn(self, state, action)
+    def step(self, rng: Array, scene: Scene, state: State, action: Action) -> Tuple[Obs, State]:
+        return obs_fn(self, scene, state), step_fn(rng, self, scene, state, action)
 
+    @property
+    def num_units(self):
+        return sum(self.cfg.counts.allies.values()) + sum(self.cfg.counts.enemies.values())
 
-@dataclass
-class Action:
-    health: Array | None  # attack/heal
-    moving: Array  # move agents
+    @property
+    def num_allies(self):
+        return sum(self.cfg.counts.allies.values())
+
+    @property
+    def num_enemies(self):
+        return sum(self.cfg.counts.enemies.values())
 
 
 # %% Functions ################################################################
-# @eqx.filter_jit
-def init_fn(rng: Array, env: Env) -> Tuple[Obs, State]:  # initialize -----
-    keys, num_agents = random.split(rng), env.cfg.num_allies + env.cfg.num_enemies  # meta ----
-    health = jnp.take(env.cfg.unit_type_health, env.scene.unit_types)  # health of agents by type for starting
-    pos = random.normal(keys[1], (num_agents, 2)) + env.cfg.size / 2
-    state = State(unit_position=pos, unit_health=health, unit_cooldown=jnp.zeros(num_agents))  # state --
-    return obs_fn(env, state), state  # return observation and state of agents --
+@eqx.filter_jit
+def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:  # initialize -----
+    keys = random.split(rng)
+    health = jnp.ones(env.num_units)  # health of agents by type for starting
+    pos = random.normal(keys[1], (scene.unit_types.size, 2)) + env.cfg.size / 2
+    state = State(unit_position=pos, unit_health=health, unit_cooldown=jnp.zeros(env.num_units))  # state --
+    return obs_fn(env, scene, state), state  # return observation and state of agents --
 
 
-# @eqx.filter_jit
-def obs_fn(env, state: State) -> Obs:  # return info about neighbors ---
+@eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
+def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
     distances = jnp.linalg.norm(state.unit_position[:, None] - state.unit_position, axis=-1)  # all dist --
-    mask = distances < env.cfg.unit_type_sight[env.scene.unit_types][..., None]  # mask for removing hidden -
-    return Obs(dist=jnp.where(mask, distances, jnp.inf)[0])
+    dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
+    mask = dists < scene.unit_type_sight[scene.unit_types][..., None]  # mask for removing hidden -
+    health = state.unit_health[idxs] * mask
+    cooldown = state.unit_cooldown[idxs] * mask
+    pos = state.unit_position[idxs] * mask[..., None]
+    return Obs(unit_id=idxs, unit_pos=pos, unit_health=health, unit_cooldown=cooldown)
 
 
-# @eqx.filter_jit
-def step_fn(env: Env, state: State, action: Action) -> State:  # update agents ---
-    new_pos = state.unit_position + action.moving
+@eqx.filter_jit
+def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
+    new_pos = state.unit_position + action.coord * (1 - action.kinds[..., None])
     bounds = ((new_pos < 0).any(axis=-1) | (new_pos >= env.cfg.size).any(axis=-1))[..., None]
-    builds = (env.scene.terrain.building[*new_pos.astype(jnp.int32).T] > 0)[..., None]
+    builds = (scene.terrain.building[*new_pos.astype(jnp.int32).T] > 0)[..., None]
     pos = jnp.where(bounds | builds, state.unit_position, new_pos)  # use old pos if new is not valid
     return State(unit_position=pos, unit_health=state.unit_health, unit_cooldown=state.unit_cooldown)  # return -
 
 
-def compute_line_of_sight_discretization(unit_type_sight_ranges):
-    resolution = jnp.array(jnp.max(unit_type_sight_ranges), dtype=jnp.int32) * 2
-    return jnp.tile(jnp.linspace(0, 1, resolution.item()), (2, 1))  # the constant line of sight discretization
+# @eqx.filter_jit
+def scene_fn(cfg):
+    aux = lambda key: jnp.array([x[key] for x in sorted(cfg.types, key=lambda x: x.name)])  # noqa
+    attrs = ["health", "damage", "reload", "reach", "sight", "speed"]
+    kwargs = {f"unit_type_{a}": aux(a) for a in attrs} | {"terrain": geography_fn(cfg.place)}
+    num_allies, num_enemies = sum(cfg.counts.allies.values()), sum(cfg.counts.enemies.values())
+    unit_teams = jnp.concat((jnp.zeros(num_allies), jnp.ones(num_enemies))).astype(jnp.int32)
+    aux = lambda t: jnp.concat([jnp.zeros(x) + i for i, x in enumerate([x[1] for x in sorted(cfg.counts[t].items())])])  # noqa
+    unit_types = jnp.concat((aux("allies"), aux("enemies"))).astype(jnp.int32)
+    return Scene(unit_teams=unit_teams, unit_types=unit_types, **kwargs)  # type: ignore

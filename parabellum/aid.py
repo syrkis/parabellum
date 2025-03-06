@@ -25,11 +25,3 @@ def to_platecarree(bbox: BBox) -> BBox:
     west, south = proj.transform_point(bbox.west, bbox.south, ccrs.Mercator())
     east, north = proj.transform_point(bbox.east, bbox.north, ccrs.Mercator())
     return BBox(north=north, south=south, east=east, west=west)
-
-
-@dataclass
-class Terrain:
-    building: Array
-    water: Array
-    forest: Array
-    basemap: Array

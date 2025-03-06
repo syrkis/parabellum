@@ -34,6 +34,8 @@ brax = "^0.12.1"
 wandb = "^0.19.7"
 flashbax = "^0.1.2"
 navix = "^0.7.0"
+omegaconf = "^2.3.0"
+jax-tqdm = "^0.3.1"
 
 [tool.poetry.group.dev.dependencies]
 esch = { path = "../../esch" }
