@@ -4,7 +4,7 @@
 
 # %% Imports
 from rasterio import features, transform
-import datetime
+from jax import tree
 from geopy.geocoders import Nominatim
 from geopy.distance import distance
 import contextily as cx
@@ -78,7 +78,7 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
 
 
 @cachier()
-def geography_fn(place, buffer=350) -> Terrain:
+def geography_fn(place, buffer) -> Terrain:
     bbox = get_bbox(place, buffer)
     map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
     gdf = gpd.GeoDataFrame(map_data)
@@ -86,13 +86,14 @@ def geography_fn(place, buffer=350) -> Terrain:
     raster = raster_fn(gdf, shape=(buffer, buffer))
     basemap = jnp.rot90(basemap_fn(bbox, gdf), 3)
     kernel = jnp.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
-    trans = lambda x: jnp.rot90(x, 3)
+    trans = lambda x: jnp.rot90(x, 3)  # noqa
     terrain = Terrain(
         building=trans(raster[0]),
         water=trans(raster[1] - convolve(raster[1] * raster[2], kernel, mode="same") > 0),
         forest=trans(jnp.logical_or(raster[3], raster[4])),
         basemap=basemap,
     )
+    terrain = tree.map(lambda x: x.astype(jnp.int16), terrain)
     return terrain
 
 

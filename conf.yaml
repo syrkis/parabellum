@@ -20,7 +20,7 @@ types:
     damage: 10
     reload: 1
     reach: 1
-    sight: 1
+    sight: 5
     speed: 1
   - name: "Tank"
     health: 200

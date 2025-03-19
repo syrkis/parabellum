@@ -35,6 +35,8 @@ class Terrain:
 @dataclass
 class Scene:
     terrain: Terrain
+    mask: Array
+
     unit_types: Array
     unit_teams: Array
 
