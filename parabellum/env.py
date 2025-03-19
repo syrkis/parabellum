@@ -4,7 +4,8 @@
 
 # % Imports
 import jax.numpy as jnp
-from jax import random, Array, lax, debug, vmap
+from jax import random, Array, lax, vmap, debug
+import jax.numpy.linalg as la
 from typing import Tuple
 from functools import partial
 
@@ -42,7 +43,7 @@ class Env:
 @eqx.filter_jit
 def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:  # initialize -----
     keys = random.split(rng)
-    health = jnp.ones(env.num_units)  # health of agents by type for starting
+    health = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
     pos = random.normal(keys[1], (scene.unit_types.size, 2)) * 2 + env.cfg.size / 2
     state = State(unit_position=pos, unit_health=health, unit_cooldown=jnp.zeros(env.num_units))  # state --
     return obs_fn(env, scene, state), state  # return observation and state of agents --
@@ -50,7 +51,7 @@ def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:  # initial
 
 @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
-    distances = jnp.linalg.norm(state.unit_position[:, None] - state.unit_position, axis=-1)  # all dist --
+    distances = la.norm(state.unit_position[:, None] - state.unit_position, axis=-1)  # all dist --
     dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
     mask = mask_fn(scene, state, dists, idxs)
     health = state.unit_health[idxs] * mask
@@ -61,11 +62,20 @@ def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbo
 
 @eqx.filter_jit
 def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
-    new_pos = state.unit_position + action.coord * (1 - action.kinds[..., None])
-    bounds = ((new_pos < 0).any(axis=-1) | (new_pos >= env.cfg.size).any(axis=-1))[..., None]
-    builds = (scene.terrain.building[*new_pos.astype(jnp.int32).T] > 0)[..., None]
-    pos = jnp.where(bounds | builds, state.unit_position, new_pos)  # use old pos if new is not valid
-    return State(unit_position=pos, unit_health=state.unit_health, unit_cooldown=state.unit_cooldown)  # return -
+    newpos = state.unit_position + action.coord * (1 - action.kinds[..., None])
+    bounds = ((newpos < 0).any(axis=-1) | (newpos >= env.cfg.size).any(axis=-1))[..., None]
+    builds = (scene.terrain.building[*newpos.astype(jnp.int32).T] > 0)[..., None]
+    newpos = jnp.where(bounds | builds, state.unit_position, newpos)  # use old pos if new is not valid
+    new_hp = blast_fn(rng, env, scene, state, action)
+    return State(unit_position=newpos, unit_health=new_hp, unit_cooldown=state.unit_cooldown)  # return -
+
+
+def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---
+    dist = la.norm(state.unit_position[None, ...] - (state.unit_position + action.coord)[:, None, ...], axis=-1)
+    hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...]
+    damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
+    health = state.unit_health - damage
+    return health
 
 
 # @eqx.filter_jit

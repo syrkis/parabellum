@@ -23,7 +23,7 @@ env, scene = pb.env.Env(cfg=cfg), pb.env.scene_fn(cfg)
 # %% Functions ###############################################################
 def action_fn(rng):
     coord = random.normal(rng, (env.num_units, 2))
-    kinds = random.bernoulli(rng, 0.5, shape=(env.num_units,))
+    kinds = random.bernoulli(rng, 0.1, shape=(env.num_units,))
     return pb.types.Action(coord=coord, kinds=kinds)
 
 
@@ -35,11 +35,11 @@ def step(state, inputs):
     return state, state
 
 
-def anim(scene, seq, scale=8):  # animate positions
+def anim(scene, seq, scale=4):  # animate positions
     idxs = jnp.concat((jnp.arange(seq.shape[0]).repeat(seq.shape[1])[..., None], seq.reshape(-1, 2)), axis=1).T
     imgs = np.array(repeat(scene.terrain.building, "... -> a ...", a=n_steps).at[*idxs].set(1)).astype(np.uint8) * 255
     imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs]  # type: ignore
-    imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=100, loop=0)
+    imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=50, loop=0)
 
 
 # %% Main #####################################################################

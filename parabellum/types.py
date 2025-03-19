@@ -1,3 +1,8 @@
+# types.py
+#   parabellum types
+# by: Noah Syrkis
+
+# imports
 from chex import dataclass
 from jaxtyping import Array, Bool, Float16
 
@@ -20,7 +25,7 @@ class Obs:
 
 @dataclass
 class Action:
-    coord: Float16[Array, "..."]
+    coord: Float16[Array, "... 2"]  # noqa
     kinds: Bool[Array, "..."]
 
 
