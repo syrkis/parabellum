@@ -77,7 +77,6 @@ def scene_fn(cfg):
     unit_teams = jnp.concat((jnp.zeros(num_allies), jnp.ones(num_enemies))).astype(jnp.int32)
     aux = lambda t: jnp.concat([jnp.zeros(x) + i for i, x in enumerate([x[1] for x in sorted(cfg.counts[t].items())])])  # noqa
     unit_types = jnp.concat((aux("allies"), aux("enemies"))).astype(jnp.int32)
-    # masking = compute_line_of_sight_discretization(kwargs["unit_type_sight"])
     mask = aid.obstacle_mask_fn(max([x["sight"] for x in cfg.types]))
     return Scene(unit_teams=unit_teams, unit_types=unit_types, mask=mask, **kwargs)  # type: ignore
 
@@ -85,12 +84,12 @@ def scene_fn(cfg):
 @eqx.filter_jit
 def mask_fn(scene, state, dists, idxs):
     mask = dists < scene.unit_type_sight[scene.unit_types][..., None]  # mask for removing hidden
-    mask = mask | unit_fn(scene, state.unit_position[idxs].astype(jnp.int8))
+    mask = mask | obstacle_fn(scene, state.unit_position[idxs].astype(jnp.int8))
     return mask
 
 
 @partial(vmap, in_axes=(None, 0))  # 5 x 2 # not the best name for a fn
-def unit_fn(scene, pos):
+def obstacle_fn(scene, pos):
     slice = slice_fn(scene, pos[0], pos)
     return slice
 
