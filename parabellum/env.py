@@ -85,14 +85,13 @@ def scene_fn(cfg):
 @eqx.filter_jit
 def mask_fn(scene, state, dists, idxs):
     mask = dists < scene.unit_type_sight[scene.unit_types][..., None]  # mask for removing hidden
-    unit = unit_fn(scene, state.unit_position[idxs].astype(jnp.int8))
+    mask = mask | unit_fn(scene, state.unit_position[idxs].astype(jnp.int8))
     return mask
 
 
 @partial(vmap, in_axes=(None, 0))  # 5 x 2 # not the best name for a fn
 def unit_fn(scene, pos):
-    slice = slice_fn(scene, pos[0], pos[1:])
-    # debug.breakpoint()
+    slice = slice_fn(scene, pos[0], pos)
     return slice
 
 
