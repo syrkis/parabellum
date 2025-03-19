@@ -72,7 +72,7 @@ def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:
 
 def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---
     dist = la.norm(state.unit_position[None, ...] - (state.unit_position + action.coord)[:, None, ...], axis=-1)
-    hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...]
+    hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.kinds[..., None]  # mask non attack act
     damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
     health = state.unit_health - damage
     return health
