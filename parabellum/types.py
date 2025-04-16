@@ -4,7 +4,9 @@
 
 # imports
 from chex import dataclass
+import jax.numpy as jnp
 from jaxtyping import Array, Bool, Float16
+from dataclasses import field
 
 
 # dataclasses
@@ -13,6 +15,7 @@ class State:
     unit_position: Array
     unit_health: Array
     unit_cooldown: Array
+    mark_position: Float16[Array, "6 2"] = field(default_factory=lambda: jnp.array([[0, 0]] * 6))  # noqa
 
 
 @dataclass
@@ -25,8 +28,18 @@ class Obs:
 
 @dataclass
 class Action:
-    coord: Float16[Array, "... 2"]  # noqa
-    kinds: Bool[Array, "..."]
+    # coord: Float16[Array, "... 2"] = jnp.array([[0, 0]])  # noqa
+    # kinds: Bool[Array, "..."] = jnp.array([0])
+    coord: Float16[Array, "... 2"] = field(default_factory=lambda: jnp.array([0.0, 0.0]))  # noqa
+    kinds: Bool[Array, "..."] = field(default_factory=lambda: jnp.bool(jnp.array([0])))
+
+    @property
+    def fire(self):
+        return self.kinds
+
+    @property
+    def move(self):
+        return ~self.kinds
 
 
 @dataclass

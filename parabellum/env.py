@@ -4,7 +4,7 @@
 
 # % Imports
 import jax.numpy as jnp
-from jax import random, Array, lax, vmap, debug
+from jax import random, Array, lax, vmap
 import jax.numpy.linalg as la
 from typing import Tuple
 from functools import partial
@@ -53,10 +53,11 @@ def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:  # initial
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
     distances = la.norm(state.unit_position[:, None] - state.unit_position, axis=-1)  # all dist --
     dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
-    mask = mask_fn(scene, state, dists, idxs)
+    mask = sight_fn(scene, state, dists, idxs)
     health = state.unit_health[idxs] * mask
     cooldown = state.unit_cooldown[idxs] * mask
-    unit_pos = (state.unit_position[:, None, ...] - state.unit_position[idxs]) * mask[..., None]
+    self_pos = state.unit_position[idxs[0]]
+    unit_pos = ((state.unit_position[:, None, ...] - state.unit_position[idxs]) * mask[..., None]).at[0].set(self_pos)
     return Obs(unit_id=idxs, unit_pos=unit_pos, unit_health=health, unit_cooldown=cooldown)
 
 
@@ -74,12 +75,11 @@ def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # upda
     dist = la.norm(state.unit_position[None, ...] - (state.unit_position + action.coord)[:, None, ...], axis=-1)
     hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.kinds[..., None]  # mask non attack act
     damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
-    health = state.unit_health - damage
-    return health
+    return state.unit_health - damage
 
 
 # @eqx.filter_jit
-def scene_fn(cfg):
+def scene_fn(cfg):  # init's a scene
     aux = lambda key: jnp.array([x[key] for x in sorted(cfg.types, key=lambda x: x.name)])  # noqa
     attrs = ["health", "damage", "reload", "reach", "sight", "speed"]
     kwargs = {f"unit_type_{a}": aux(a) for a in attrs} | {"terrain": geography_fn(cfg.place, cfg.size)}
@@ -92,7 +92,7 @@ def scene_fn(cfg):
 
 
 @eqx.filter_jit
-def mask_fn(scene, state, dists, idxs):
+def sight_fn(scene, state, dists, idxs):
     mask = dists < scene.unit_type_sight[scene.unit_types][..., None]  # mask for removing hidden
     mask = mask | obstacle_fn(scene, state.unit_position[idxs].astype(jnp.int8))
     return mask
@@ -100,8 +100,7 @@ def mask_fn(scene, state, dists, idxs):
 
 @partial(vmap, in_axes=(None, 0))  # 5 x 2 # not the best name for a fn
 def obstacle_fn(scene, pos):
-    slice = slice_fn(scene, pos[0], pos)
-    return slice
+    return slice_fn(scene, pos[0], pos)
 
 
 @partial(vmap, in_axes=(None, None, 0))

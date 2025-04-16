@@ -15,15 +15,15 @@ from jax_tqdm import scan_tqdm
 
 # %% Setup #################################################################
 n_steps = 100
-cfg = OmegaConf.load("conf.yaml")
 rng, key = random.split(random.PRNGKey(0))
+cfg = OmegaConf.load("conf.yaml")
 env, scene = pb.env.Env(cfg=cfg), pb.env.scene_fn(cfg)
 
 
 # %% Functions ###############################################################
 def action_fn(rng):
     coord = random.normal(rng, (env.num_units, 2))
-    kinds = random.bernoulli(rng, 0.1, shape=(env.num_units,))
+    kinds = random.bernoulli(rng, 0.5, shape=(env.num_units,))
     return pb.types.Action(coord=coord, kinds=kinds)
 
 
@@ -35,8 +35,10 @@ def step(state, inputs):
     return state, state
 
 
-def anim(scene, seq, scale=4):  # animate positions
-    idxs = jnp.concat((jnp.arange(seq.shape[0]).repeat(seq.shape[1])[..., None], seq.reshape(-1, 2)), axis=1).T
+def anim(scene, seq, scale=2):  # animate positions TODO: remove dead units
+    pos = seq.unit_position.astype(int)
+    cord = jnp.concat((jnp.arange(pos.shape[0]).repeat(pos.shape[1])[..., None], pos.reshape(-1, 2)), axis=1).T
+    idxs = cord[:, seq.unit_health.flatten().astype(bool) > 0]
     imgs = np.array(repeat(scene.terrain.building, "... -> a ...", a=n_steps).at[*idxs].set(1)).astype(np.uint8) * 255
     imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs]  # type: ignore
     imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=50, loop=0)
@@ -46,4 +48,11 @@ def anim(scene, seq, scale=4):  # animate positions
 obs, state = env.reset(key, scene)
 rngs = random.split(rng, n_steps)
 state, seq = lax.scan(step, state, (jnp.arange(n_steps), rngs))
-anim(scene, seq.unit_position.astype(int))
+anim(scene, seq)
+
+
+# Example function (commented out as it appears incomplete)
+# def fibonacci(n):
+#     if n <= 1:
+#         return n
+#     return fibonacci(n-1) + fibonacci(n-2)
