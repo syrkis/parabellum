@@ -24,7 +24,7 @@ env, scene = pb.env.Env(cfg=cfg), pb.env.scene_fn(cfg)
 def action_fn(rng):
     coord = random.normal(rng, (env.num_units, 2))
     kinds = random.bernoulli(rng, 0.5, shape=(env.num_units,))
-    return pb.types.Action(coord=coord, kinds=kinds)
+    return pb.types.Action(coord=coord, shoot=kinds)
 
 
 @scan_tqdm(n_steps)

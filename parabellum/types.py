@@ -31,15 +31,11 @@ class Action:
     # coord: Float16[Array, "... 2"] = jnp.array([[0, 0]])  # noqa
     # kinds: Bool[Array, "..."] = jnp.array([0])
     coord: Float16[Array, "... 2"] = field(default_factory=lambda: jnp.array([0.0, 0.0]))  # noqa
-    kinds: Bool[Array, "..."] = field(default_factory=lambda: jnp.bool(jnp.array([0])))
-
-    @property
-    def fire(self):
-        return self.kinds
+    shoot: Bool[Array, "..."] = field(default_factory=lambda: jnp.array([0]) == 0)
 
     @property
     def move(self):
-        return ~self.kinds
+        return ~self.shoot
 
 
 @dataclass

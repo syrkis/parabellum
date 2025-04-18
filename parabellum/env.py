@@ -4,7 +4,7 @@
 
 # % Imports
 import jax.numpy as jnp
-from jax import random, Array, lax, vmap
+from jax import random, Array, lax, vmap, debug
 import jax.numpy.linalg as la
 from typing import Tuple
 from functools import partial
@@ -56,24 +56,29 @@ def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbo
     mask = sight_fn(scene, state, dists, idxs)
     health = state.unit_health[idxs] * mask
     cooldown = state.unit_cooldown[idxs] * mask
-    self_pos = state.unit_position[idxs[0]]
-    unit_pos = ((state.unit_position[:, None, ...] - state.unit_position[idxs]) * mask[..., None]).at[0].set(self_pos)
+    rel_pos = (state.unit_position[:, None, ...] - state.unit_position[idxs]) * mask[..., None]
+    unit_pos = unit_pos_fn(rel_pos, state.unit_position)
     return Obs(unit_id=idxs, unit_pos=unit_pos, unit_health=health, unit_cooldown=cooldown)
+
+
+@partial(vmap, in_axes=(0, 0))
+def unit_pos_fn(unit_pos, self_pos):
+    return unit_pos.at[0].set(self_pos)
 
 
 @eqx.filter_jit
 def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
-    newpos = state.unit_position + action.coord * (1 - action.kinds[..., None])
+    newpos = state.unit_position + action.coord * (action.move[..., None])
     bounds = ((newpos < 0).any(axis=-1) | (newpos >= env.cfg.size).any(axis=-1))[..., None]
     builds = (scene.terrain.building[*newpos.astype(jnp.int32).T] > 0)[..., None]
     newpos = jnp.where(bounds | builds, state.unit_position, newpos)  # use old pos if new is not valid
     new_hp = blast_fn(rng, env, scene, state, action)
-    return State(unit_position=newpos, unit_health=new_hp, unit_cooldown=state.unit_cooldown)  # return -
+    return State(unit_position=newpos, unit_health=new_hp, unit_cooldown=state.unit_cooldown)  # return
 
 
 def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---
     dist = la.norm(state.unit_position[None, ...] - (state.unit_position + action.coord)[:, None, ...], axis=-1)
-    hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.kinds[..., None]  # mask non attack act
+    hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.shoot[..., None]  # mask non attack act
     damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
     return state.unit_health - damage
 
