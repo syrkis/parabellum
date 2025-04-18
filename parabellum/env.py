@@ -39,26 +39,24 @@ class Env:
         return sum(self.cfg.counts.enemies.values())
 
 
-# %% Functions ################################################################
+# %% Functions
 @eqx.filter_jit
-def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:  # initialize -----
+def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
     keys = random.split(rng)
     health = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
     pos = random.normal(keys[1], (scene.unit_types.size, 2)) * 2 + env.cfg.size / 2
-    state = State(unit_position=pos, unit_health=health, unit_cooldown=jnp.zeros(env.num_units))  # state --
-    return obs_fn(env, scene, state), state  # return observation and state of agents --
+    state = State(coords=pos, health=health, target=jnp.zeros((env.num_units, 2)))
+    return obs_fn(env, scene, state), state
 
 
 @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
-    distances = la.norm(state.unit_position[:, None] - state.unit_position, axis=-1)  # all dist --
+    distances = la.norm(state.coords[:, None] - state.coords, axis=-1)  # all dist --
     dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
     mask = sight_fn(scene, state, dists, idxs)
-    health = state.unit_health[idxs] * mask
-    cooldown = state.unit_cooldown[idxs] * mask
-    rel_pos = (state.unit_position[:, None, ...] - state.unit_position[idxs]) * mask[..., None]
-    unit_pos = unit_pos_fn(rel_pos, state.unit_position)
-    return Obs(unit_id=idxs, unit_pos=unit_pos, unit_health=health, unit_cooldown=cooldown)
+    health = state.health[idxs] * mask
+    coords = unit_pos_fn((state.coords[:, None, ...] - state.coords[idxs]) * mask[..., None], state.coords)
+    return Obs(idxs=idxs, coords=coords, health=health)
 
 
 @partial(vmap, in_axes=(0, 0))
@@ -68,19 +66,19 @@ def unit_pos_fn(unit_pos, self_pos):
 
 @eqx.filter_jit
 def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
-    newpos = state.unit_position + action.coord * (action.move[..., None])
+    newpos = state.coords + action.coord * (action.move[..., None])
     bounds = ((newpos < 0).any(axis=-1) | (newpos >= env.cfg.size).any(axis=-1))[..., None]
     builds = (scene.terrain.building[*newpos.astype(jnp.int32).T] > 0)[..., None]
-    newpos = jnp.where(bounds | builds, state.unit_position, newpos)  # use old pos if new is not valid
-    new_hp = blast_fn(rng, env, scene, state, action)
-    return State(unit_position=newpos, unit_health=new_hp, unit_cooldown=state.unit_cooldown)  # return
+    newpos = jnp.where(bounds | builds, state.coords, newpos)  # use old pos if new is not valid
+    health = blast_fn(rng, env, scene, state, action)
+    return State(coords=newpos, health=health, target=state.target)  # return
 
 
 def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---
-    dist = la.norm(state.unit_position[None, ...] - (state.unit_position + action.coord)[:, None, ...], axis=-1)
+    dist = la.norm(state.coords[None, ...] - (state.coords + action.coord)[:, None, ...], axis=-1)
     hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.shoot[..., None]  # mask non attack act
     damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
-    return state.unit_health - damage
+    return state.health - damage
 
 
 # @eqx.filter_jit
@@ -97,9 +95,9 @@ def scene_fn(cfg):  # init's a scene
 
 
 @eqx.filter_jit
-def sight_fn(scene, state, dists, idxs):
+def sight_fn(scene: Scene, state: State, dists, idxs):
     mask = dists < scene.unit_type_sight[scene.unit_types][..., None]  # mask for removing hidden
-    mask = mask | obstacle_fn(scene, state.unit_position[idxs].astype(jnp.int8))
+    mask = mask | obstacle_fn(scene, state.coords[idxs].astype(jnp.int8))
     return mask
 
 

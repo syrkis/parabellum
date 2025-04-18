@@ -12,18 +12,16 @@ from dataclasses import field
 # dataclasses
 @dataclass
 class State:
-    unit_position: Array
-    unit_health: Array
-    unit_cooldown: Array
-    mark_position: Float16[Array, "6 2"] = field(default_factory=lambda: jnp.array([[0, 0]] * 6))  # noqa
+    coords: Array
+    health: Array
+    target: Array
 
 
 @dataclass
 class Obs:
-    unit_id: Array
-    unit_pos: Array
-    unit_health: Array
-    unit_cooldown: Array
+    idxs: Array
+    coords: Array
+    health: Array
 
 
 @dataclass
@@ -31,7 +29,7 @@ class Action:
     # coord: Float16[Array, "... 2"] = jnp.array([[0, 0]])  # noqa
     # kinds: Bool[Array, "..."] = jnp.array([0])
     coord: Float16[Array, "... 2"] = field(default_factory=lambda: jnp.array([0.0, 0.0]))  # noqa
-    shoot: Bool[Array, "..."] = field(default_factory=lambda: jnp.array([0]) == 0)
+    shoot: Bool[Array, "..."] = field(default_factory=lambda: jnp.ones(1) == 0)
 
     @property
     def move(self):

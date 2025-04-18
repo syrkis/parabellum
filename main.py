@@ -36,9 +36,9 @@ def step(state, inputs):
 
 
 def anim(scene, seq, scale=2):  # animate positions TODO: remove dead units
-    pos = seq.unit_position.astype(int)
+    pos = seq.coords.astype(int)
     cord = jnp.concat((jnp.arange(pos.shape[0]).repeat(pos.shape[1])[..., None], pos.reshape(-1, 2)), axis=1).T
-    idxs = cord[:, seq.unit_health.flatten().astype(bool) > 0]
+    idxs = cord[:, seq.health.flatten().astype(bool) > 0]
     imgs = np.array(repeat(scene.terrain.building, "... -> a ...", a=n_steps).at[*idxs].set(1)).astype(np.uint8) * 255
     imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs]  # type: ignore
     imgs[0].save("output.gif", save_all=True, append_images=imgs[1:], duration=50, loop=0)
