@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "parabellum"
-version = "0.6.0"
+version = "0.6.12"
 description = "Parabellum environment for parallel warfare simulation"
 authors = ["Noah Syrkis <desk@syrkis.com>"]
 readme = "README.md"
@@ -23,7 +23,7 @@ cartopy = "^0.23.0"
 stadiamaps = "^3.2.1"
 cachier = "^3.1.2"
 equinox = "^0.11.11"
-jax = "^0.5.0"
+jax = "^0.6.0"
 gymnax = "^0.0.8"
 evosax = "^0.1.6"
 distrax = "^0.1.5"
@@ -39,7 +39,7 @@ jax-tqdm = "^0.3.1"
 
 [tool.poetry.group.dev.dependencies]
 esch = { path = "../../esch" }
-purejaxrl = { path = "../purejaxrl" }
+# purejaxrl = { path = "../purejaxrl" }
 
 [build-system]
 requires = ["poetry-core"]

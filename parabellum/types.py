@@ -20,16 +20,18 @@ class State:
 @dataclass
 class Obs:
     idxs: Array
+    type: Array
     coords: Array
     health: Array
+    target: Array
 
 
 @dataclass
 class Action:
     # coord: Float16[Array, "... 2"] = jnp.array([[0, 0]])  # noqa
     # kinds: Bool[Array, "..."] = jnp.array([0])
-    coord: Float16[Array, "... 2"] = field(default_factory=lambda: jnp.array([0.0, 0.0]))  # noqa
-    shoot: Bool[Array, "..."] = field(default_factory=lambda: jnp.ones(1) == 0)
+    coord: Float16[Array, "... 2"] = field(default_factory=lambda: jnp.zeros(2))  # noqa
+    shoot: Bool[Array, "..."] = field(default_factory=lambda: jnp.array(True))  # self-harm by default
 
     @property
     def move(self):

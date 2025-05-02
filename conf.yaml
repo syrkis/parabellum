@@ -1,18 +1,18 @@
-place: "Copenhagen, Denmark"
-size: 500
+place: "The Pentagon, Pentagon Access Road, Arlington County, Virginia, 20301, United States"
+size: 200
 knn: 5
-num_units: 12
-num_allies: 6
-num_enemies: 6
+num_units: 600
+num_allies: 300
+num_enemies: 300
 counts:
   allies:
-    Infantry: 2
-    Tank: 2
-    Airplane: 2
+    Infantry: 100
+    Tank: 100
+    Airplane: 100
   enemies:
-    Infantry: 2
-    Tank: 2
-    Airplane: 2
+    Infantry: 100
+    Tank: 100
+    Airplane: 100
 
 types:
   - name: "Infantry"

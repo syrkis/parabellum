@@ -42,10 +42,11 @@ class Env:
 # %% Functions
 @eqx.filter_jit
 def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
-    keys = random.split(rng)
+    keys = random.split(rng, 3)
     health = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
-    pos = random.normal(keys[1], (scene.unit_types.size, 2)) * 2 + env.cfg.size / 2
-    state = State(coords=pos, health=health, target=jnp.zeros((env.num_units, 2)))
+    pos = random.uniform(keys[1], (scene.unit_types.size, 2), minval=0, maxval=env.cfg.size)
+    target = random.randint(keys[2], (env.num_units, 2), minval=0, maxval=env.cfg.size)
+    state = State(coords=pos, health=health, target=target)
     return obs_fn(env, scene, state), state
 
 
@@ -54,9 +55,10 @@ def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbo
     distances = la.norm(state.coords[:, None] - state.coords, axis=-1)  # all dist --
     dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
     mask = sight_fn(scene, state, dists, idxs)
+    type = scene.unit_types[idxs] * mask
     health = state.health[idxs] * mask
-    coords = unit_pos_fn((state.coords[:, None, ...] - state.coords[idxs]) * mask[..., None], state.coords)
-    return Obs(idxs=idxs, coords=coords, health=health)
+    coords = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]) * mask[..., None], state.coords)
+    return Obs(idxs=idxs, coords=coords, health=health, target=state.target, type=type)
 
 
 @partial(vmap, in_axes=(0, 0))
@@ -66,12 +68,14 @@ def unit_pos_fn(unit_pos, self_pos):
 
 @eqx.filter_jit
 def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
-    newpos = state.coords + action.coord * (action.move[..., None])
-    bounds = ((newpos < 0).any(axis=-1) | (newpos >= env.cfg.size).any(axis=-1))[..., None]
-    builds = (scene.terrain.building[*newpos.astype(jnp.int32).T] > 0)[..., None]
-    newpos = jnp.where(bounds | builds, state.coords, newpos)  # use old pos if new is not valid
+    # deltas = action.coord / jnp.linalg.norm(action.coord + random.normal(rng) * 0.01, axis=1)[..., None]
+    speeds = scene.unit_type_speed[scene.unit_types][..., None]
+    coords = state.coords + jnp.where(action.coord > speeds, speeds, action.coord) * action.move[..., None]
+    bounds = ((coords < 0).any(axis=-1) | (coords >= env.cfg.size).any(axis=-1))[..., None]
+    builds = (scene.terrain.building[*coords.astype(jnp.int32).T] > 0)[..., None]
+    coords = jnp.where(bounds | builds, state.coords, coords)  # use old pos if new is not valid
     health = blast_fn(rng, env, scene, state, action)
-    return State(coords=newpos, health=health, target=state.target)  # return
+    return State(coords=coords, health=health, target=state.target)  # type: ignore
 
 
 def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---

@@ -6,11 +6,14 @@
 import jax.numpy as jnp
 import numpy as np
 from jax import random, lax
+import jax
 from PIL import Image
 import parabellum as pb
 from einops import repeat
 from omegaconf import OmegaConf
 from jax_tqdm import scan_tqdm
+
+jax.config.update("jax_debug_nans", True)
 
 
 # %% Setup #################################################################
@@ -23,8 +26,8 @@ env, scene = pb.env.Env(cfg=cfg), pb.env.scene_fn(cfg)
 # %% Functions ###############################################################
 def action_fn(rng):
     coord = random.normal(rng, (env.num_units, 2))
-    kinds = random.bernoulli(rng, 0.5, shape=(env.num_units,))
-    return pb.types.Action(coord=coord, shoot=kinds)
+    shoot = random.bernoulli(rng, 0.5, shape=(env.num_units,))
+    return pb.types.Action(coord=coord, shoot=shoot)
 
 
 @scan_tqdm(n_steps)
@@ -48,11 +51,7 @@ def anim(scene, seq, scale=2):  # animate positions TODO: remove dead units
 obs, state = env.reset(key, scene)
 rngs = random.split(rng, n_steps)
 state, seq = lax.scan(step, state, (jnp.arange(n_steps), rngs))
-anim(scene, seq)
+anim(scene, seq, scale=8)
 
 
-# Example function (commented out as it appears incomplete)
-# def fibonacci(n):
-#     if n <= 1:
-#         return n
-#     return fibonacci(n-1) + fibonacci(n-2)
+print(jnp.isnan(seq.coords).any())
