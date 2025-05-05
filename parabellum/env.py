@@ -44,9 +44,26 @@ class Env:
 def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
     keys = random.split(rng, 3)
     health = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
-    pos = random.uniform(keys[1], (scene.unit_types.size, 2), minval=0, maxval=env.cfg.size)
-    target = random.randint(keys[2], (env.num_units, 2), minval=0, maxval=env.cfg.size)
-    state = State(coords=pos, health=health, target=target)
+
+    # Create a probability mask: 0 where buildings exist, uniform elsewhere
+    terrain_shape = scene.terrain.building.shape
+    prob_mask = jnp.ones(terrain_shape)  # Start with all ones
+    prob_mask = prob_mask.at[scene.terrain.building].set(0)  # Set to 0 where buildings exist
+
+    # Normalize the mask to create a probability distribution
+    prob_mask = prob_mask / jnp.sum(prob_mask)
+
+    # Flatten the mask and create indices for all grid positions
+    flat_probs = prob_mask.flatten()
+    indices = jnp.arange(flat_probs.size)
+
+    # Sample positions using categorical distribution
+    flat_indices = random.choice(keys[0], indices, shape=(env.num_units,), p=flat_probs, replace=True)
+
+    # Convert flat indices back to 2D coordinates
+    pos = jnp.float32(jnp.column_stack([flat_indices // terrain_shape[1], flat_indices % terrain_shape[1]]))
+
+    state = State(coords=pos + random.uniform(rng, pos.shape) - 0.5, health=health)
     return obs_fn(env, scene, state), state
 
 
@@ -58,7 +75,7 @@ def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbo
     type = scene.unit_types[idxs] * mask
     health = state.health[idxs] * mask
     coords = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]) * mask[..., None], state.coords)
-    return Obs(idxs=idxs, coords=coords, health=health, target=state.target, type=type)
+    return Obs(idxs=idxs, coords=coords, health=health, type=type)
 
 
 @partial(vmap, in_axes=(0, 0))
@@ -70,12 +87,37 @@ def unit_pos_fn(unit_pos, self_pos):
 def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
     # deltas = action.coord / jnp.linalg.norm(action.coord + random.normal(rng) * 0.01, axis=1)[..., None]
     speeds = scene.unit_type_speed[scene.unit_types][..., None]
-    coords = state.coords + jnp.where(action.coord > speeds, speeds, action.coord) * action.move[..., None]
+    coords = state.coords + action.coord.clip(-speeds, speeds) * action.move[..., None]
+    coords = push_fn(coords + random.normal(rng, coords.shape) * 0.01)
     bounds = ((coords < 0).any(axis=-1) | (coords >= env.cfg.size).any(axis=-1))[..., None]
     builds = (scene.terrain.building[*coords.astype(jnp.int32).T] > 0)[..., None]
-    coords = jnp.where(bounds | builds, state.coords, coords)  # use old pos if new is not valid
-    health = blast_fn(rng, env, scene, state, action)
-    return State(coords=coords, health=health, target=state.target)  # type: ignore
+    coords = jnp.where(bounds | builds, state.coords, coords)
+    # health = blast_fn(rng, env, scene, state, action)
+    return State(coords=coords, health=state.health)  # type: ignore
+
+
+def push_fn(coords):
+    """Push units away from each other if they're too close."""
+    distances = la.norm(coords[:, None] - coords, axis=-1)
+    too_close = (distances > 0) & (distances < 2.0)  # Units closer than 2 units
+
+    # Calculate unit displacement vectors
+    disp_vectors = coords[:, None] - coords
+
+    # Normalize displacement vectors (avoiding division by zero)
+    norms = distances[..., None]
+    safe_norms = jnp.where(norms > 0, norms, 1.0)
+    normalized_disp = disp_vectors / safe_norms
+
+    # Calculate repulsion forces (stronger when closer)
+    repulsion_strength = jnp.where(too_close, 1.0 / jnp.maximum(distances, 0.1), 0.0)
+    repulsion = normalized_disp * repulsion_strength[..., None]
+
+    # Sum all repulsion forces for each unit
+    total_repulsion = jnp.sum(repulsion, axis=1)
+
+    # Apply the repulsion with a scaling factor
+    return coords + total_repulsion * 0.5
 
 
 def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---

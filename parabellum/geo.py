@@ -86,7 +86,7 @@ def geography_fn(place, buffer) -> Terrain:
     raster = raster_fn(gdf, shape=(buffer, buffer))
     basemap = jnp.rot90(basemap_fn(bbox, gdf), 3)
     kernel = jnp.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
-    trans = lambda x: jnp.rot90(x, 3)  # noqa
+    trans = lambda x: x  # jnp.rot90(x, 3)  # noqa
     terrain = Terrain(
         building=trans(raster[0]),
         water=trans(raster[1] - convolve(raster[1] * raster[2], kernel, mode="same") > 0),

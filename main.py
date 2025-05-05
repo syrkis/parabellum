@@ -51,7 +51,7 @@ def anim(scene, seq, scale=2):  # animate positions TODO: remove dead units
 obs, state = env.reset(key, scene)
 rngs = random.split(rng, n_steps)
 state, seq = lax.scan(step, state, (jnp.arange(n_steps), rngs))
-anim(scene, seq, scale=8)
+anim(scene, seq, scale=2)
 
 
 print(jnp.isnan(seq.coords).any())

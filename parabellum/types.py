@@ -14,7 +14,7 @@ from dataclasses import field
 class State:
     coords: Array
     health: Array
-    target: Array
+    # target: Array
 
 
 @dataclass
@@ -23,7 +23,7 @@ class Obs:
     type: Array
     coords: Array
     health: Array
-    target: Array
+    # target: Array
 
 
 @dataclass
