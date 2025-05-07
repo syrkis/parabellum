@@ -1,18 +1,18 @@
 place: "Tietgenkollegiet, Copenhagen, Denmark"
 size: 500
 knn: 5
-num_units: 65536
-num_allies: 32768
-num_enemies: 32768
+num_units: 16384
+num_allies: 8192
+num_enemies: 8192
 counts:
   allies:
     # Infantry: 0
     # Tank: 0
-    Airplane: 32768
+    Airplane: 8192
   enemies:
     # Infantry: 0
     # Tank: 0
-    Airplane: 32768
+    Airplane: 8192
 
 types:
   - name: "Infantry"
