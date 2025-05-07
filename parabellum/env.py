@@ -8,6 +8,7 @@ from jax import random, Array, lax, vmap, debug
 import jax.numpy.linalg as la
 from typing import Tuple
 from functools import partial
+from einops import rearrange
 
 from parabellum.geo import geography_fn
 from parabellum.types import Action, State, Obs, Scene
@@ -39,8 +40,21 @@ class Env:
         return sum(self.cfg.counts.enemies.values())
 
 
+# @eqx.filter_jit
+def knn(coords, k, n):
+    def aux(inputs):
+        batch_coord, batch_norms = inputs
+        dots = jnp.dot(batch_coord, coords.T)
+        dist = jnp.maximum(batch_norms[:, None] + norms[None, :] - 2 * dots, 0)
+        return lax.approx_min_k(dist, k=k)
+
+    norms = jnp.sum(coords**2, axis=1)
+    dist, idxs = lax.map(aux, (coords.reshape((n, n, 2)), norms.reshape(n, n)))
+    return dist.reshape((-1, k)), idxs.reshape((-1, k))
+
+
 # %% Functions
-@eqx.filter_jit
+# @eqx.filter_jit
 def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
     keys = random.split(rng, 3)
     health = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
@@ -67,14 +81,15 @@ def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
     return obs_fn(env, scene, state), state
 
 
-@eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
+# @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
-    distances = la.norm(state.coords[:, None] - state.coords, axis=-1)  # all dist --
-    dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
-    mask = sight_fn(scene, state, dists, idxs)
-    type = scene.unit_types[idxs] * mask
-    health = state.health[idxs] * mask
-    coords = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]) * mask[..., None], state.coords)
+    # distances = la.norm(state.coords[:, None] - state.coords, axis=-1)  # all dist --
+    # dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
+    dists, idxs = knn(state.coords, k=env.cfg.knn, n=int(env.num_units**0.5))
+    # mask = sight_fn(scene, state, dists, idxs)
+    type = scene.unit_types[idxs]  # * mask
+    health = state.health[idxs]  # * mask
+    coords = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]), state.coords)
     return Obs(idxs=idxs, coords=coords, health=health, type=type)
 
 
@@ -98,6 +113,7 @@ def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:
 
 def push_fn(coords):
     """Push units away from each other if they're too close."""
+    return coords
     distances = la.norm(coords[:, None] - coords, axis=-1)
     too_close = (distances > 0) & (distances < 2.0)  # Units closer than 2 units
 
