@@ -39,7 +39,6 @@ jax-tqdm = "^0.3.1"
 
 [tool.poetry.group.dev.dependencies]
 esch = { path = "../../esch" }
-# purejaxrl = { path = "../purejaxrl" }
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,18 +1,18 @@
-place: "Abel Cathrines Gade 1, Copenhagen, Denmark"
+place: "Tietgenkollegiet, Copenhagen, Denmark"
 size: 500
 knn: 5
-num_units: 600
-num_allies: 300
-num_enemies: 300
+num_units: 6000
+num_allies: 3000
+num_enemies: 3000
 counts:
   allies:
     # Infantry: 0
     # Tank: 0
-    Airplane: 300
+    Airplane: 3000
   enemies:
     # Infantry: 0
     # Tank: 0
-    Airplane: 300
+    Airplane: 3000
 
 types:
   - name: "Infantry"
