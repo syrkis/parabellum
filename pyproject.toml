@@ -1,48 +1,53 @@
-[tool.poetry]
+[project]
 name = "parabellum"
 version = "0.6.22"
 description = "Parabellum environment for parallel warfare simulation"
-authors = ["Noah Syrkis <desk@syrkis.com>"]
+authors = [{ name = "Noah Syrkis", email = "desk@syrkis.com" }]
+requires-python = ">=3.11,<3.12"
 readme = "README.md"
+dependencies = [
+    "jupyterlab>=4.2.2,<5",
+    "poetry>=1.8.3,<2",
+    "tqdm>=4.66.4,<5",
+    "geopy>=2.4.1,<3",
+    "osmnx==2.0.0b0",
+    "rasterio>=1.3.10,<2",
+    "ipykernel>=6.29.5,<7",
+    "folium>=0.17.0,<0.18",
+    "pandas>=2.2.2,<3",
+    "contextily>=1.6.0,<2",
+    "einops>=0.8.0,<0.9",
+    "jaxtyping>=0.2.33,<0.3",
+    "cartopy>=0.23.0,<0.24",
+    "stadiamaps>=3.2.1,<4",
+    "cachier>=3.1.2,<4",
+    "equinox>=0.11.11,<0.12",
+    "jax>=0.6.0,<0.7",
+    "gymnax>=0.0.8,<0.0.9",
+    "evosax>=0.1.6,<0.2",
+    "distrax>=0.1.5,<0.2",
+    "optax>=0.2.4,<0.3",
+    "flax>=0.10.4,<0.11",
+    "numpy>=2.2.3,<3",
+    "brax>=0.12.1,<0.13",
+    "wandb>=0.19.7,<0.20",
+    "flashbax>=0.1.2,<0.2",
+    "navix>=0.7.0,<0.8",
+    "omegaconf>=2.3.0,<3",
+    "jax-tqdm>=0.3.1,<0.4",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11,<3.12"
-jupyterlab = "^4.2.2"
-poetry = "^1.8.3"
-tqdm = "^4.66.4"
-geopy = "^2.4.1"
-osmnx = "2.0.0b0"
-rasterio = "^1.3.10"
-ipykernel = "^6.29.5"
-folium = "^0.17.0"
-pandas = "^2.2.2"
-contextily = "^1.6.0"
-einops = "^0.8.0"
-jaxtyping = "^0.2.33"
-cartopy = "^0.23.0"
-stadiamaps = "^3.2.1"
-cachier = "^3.1.2"
-equinox = "^0.11.11"
-jax = "^0.6.0"
-gymnax = "^0.0.8"
-evosax = "^0.1.6"
-distrax = "^0.1.5"
-optax = "^0.2.4"
-flax = "^0.10.4"
-numpy = "^2.2.3"
-brax = "^0.12.1"
-wandb = "^0.19.7"
-flashbax = "^0.1.2"
-navix = "^0.7.0"
-omegaconf = "^2.3.0"
-jax-tqdm = "^0.3.1"
+[dependency-groups]
+dev = ["esch"]
 
-[tool.poetry.group.dev.dependencies]
+[tool.uv]
+
+[tool.uv.sources]
 esch = { path = "../../esch" }
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pyright]
 venvPath = "."
