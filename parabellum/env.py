@@ -50,7 +50,7 @@ def knn(coords, k, n):
 
     norms = jnp.sum(coords**2, axis=1)
     dist, idxs = lax.map(aux, (coords.reshape((n, n, 2)), norms.reshape(n, n)))
-    return dist.reshape((-1, k)), idxs.reshape((-1, k))
+    return dist.reshape((-1, k)) ** 0.5, idxs.reshape((-1, k))
 
 
 # %% Functions
@@ -84,7 +84,7 @@ def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
 # @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
     dist, idxs = knn(state.coords, k=env.cfg.knn, n=int(env.num_units**0.5))
-    mask = dist < scene.unit_type_reach[scene.unit_types[idxs][0]]
+    mask = dist < scene.unit_type_sight[scene.unit_types[idxs][:, 0]][..., None]
     type = scene.unit_types[idxs] * mask
     team = scene.unit_teams[idxs] * mask
     health = state.health[idxs] * mask
@@ -92,6 +92,7 @@ def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbo
     reach = scene.unit_type_reach[type] * mask
     sight = scene.unit_type_sight[type] * mask
     obs = Obs(coord=coord, health=health, type=type, dist=dist * mask, team=team, reach=reach, sight=sight)
+    # debug.breakpoint()
     return obs
 
 

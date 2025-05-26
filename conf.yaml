@@ -1,17 +1,26 @@
 place: "Tietgenkollegiet, Copenhagen, Denmark"
 size: 100
-knn: 2
+knn: 4
 counts:
   blue:
-    Airplane: 2
+    plane: 1
+    soldier: 1
   red:
-    Airplane: 2
+    plane: 1
+    soldier: 1
 
 types:
-  - name: "Airplane"
+  - name: "plane"
     health: 500
     damage: 50
     reload: 3
-    reach: 3
+    reach: 50
     sight: 100
+    speed: 10
+  - name: "soldier"
+    health: 100
+    damage: 50
+    reload: 3
+    reach: 2
+    sight: 20
     speed: 2
