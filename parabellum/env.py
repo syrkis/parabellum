@@ -8,7 +8,7 @@ from jax import random, Array, lax, vmap, debug
 import jax.numpy.linalg as la
 from typing import Tuple
 from functools import partial
-from einops import rearrange
+# from einops import rearrange
 
 from parabellum.geo import geography_fn
 from parabellum.types import Action, State, Obs, Scene
@@ -29,15 +29,15 @@ class Env:
 
     @property
     def num_units(self):
-        return sum(self.cfg.counts.allies.values()) + sum(self.cfg.counts.enemies.values())
+        return sum(self.cfg.counts.blue.values()) + sum(self.cfg.counts.red.values())
 
     @property
-    def num_allies(self):
-        return sum(self.cfg.counts.allies.values())
+    def num_blue(self):
+        return sum(self.cfg.counts.blue.values())
 
     @property
-    def num_enemies(self):
-        return sum(self.cfg.counts.enemies.values())
+    def num_red(self):
+        return sum(self.cfg.counts.red.values())
 
 
 # @eqx.filter_jit
@@ -77,20 +77,22 @@ def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
     # Convert flat indices back to 2D coordinates
     pos = jnp.float32(jnp.column_stack([flat_indices // terrain_shape[1], flat_indices % terrain_shape[1]]))
 
-    state = State(coords=pos + random.uniform(rng, pos.shape) - 0.5, health=health)
+    state = State(coords=pos + random.uniform(rng, pos.shape) * 0.1 - 0.5, health=health)
     return obs_fn(env, scene, state), state
 
 
 # @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
-    # distances = la.norm(state.coords[:, None] - state.coords, axis=-1)  # all dist --
-    # dists, idxs = lax.approx_min_k(distances, k=env.cfg.knn)
-    dists, idxs = knn(state.coords, k=env.cfg.knn, n=int(env.num_units**0.5))
-    # mask = sight_fn(scene, state, dists, idxs)
-    type = scene.unit_types[idxs]  # * mask
-    health = state.health[idxs]  # * mask
-    coords = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]), state.coords)
-    return Obs(idxs=idxs, coords=coords, health=health, type=type)
+    dist, idxs = knn(state.coords, k=env.cfg.knn, n=int(env.num_units**0.5))
+    mask = dist < scene.unit_type_reach[scene.unit_types[idxs][0]]
+    type = scene.unit_types[idxs] * mask
+    team = scene.unit_teams[idxs] * mask
+    health = state.health[idxs] * mask
+    coord = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]), state.coords) * mask[..., None]
+    reach = scene.unit_type_reach[type] * mask
+    sight = scene.unit_type_sight[type] * mask
+    obs = Obs(coord=coord, health=health, type=type, dist=dist * mask, team=team, reach=reach, sight=sight)
+    return obs
 
 
 @partial(vmap, in_axes=(0, 0))
@@ -148,10 +150,10 @@ def scene_fn(cfg):  # init's a scene
     aux = lambda key: jnp.array([x[key] for x in sorted(cfg.types, key=lambda x: x.name)])  # noqa
     attrs = ["health", "damage", "reload", "reach", "sight", "speed"]
     kwargs = {f"unit_type_{a}": aux(a) for a in attrs} | {"terrain": geography_fn(cfg.place, cfg.size)}
-    num_allies, num_enemies = sum(cfg.counts.allies.values()), sum(cfg.counts.enemies.values())
-    unit_teams = jnp.concat((jnp.zeros(num_allies), jnp.ones(num_enemies))).astype(jnp.int32)
+    num_blue, num_red = sum(cfg.counts.blue.values()), sum(cfg.counts.red.values())
+    unit_teams = jnp.concat((jnp.ones(num_blue), -jnp.ones(num_red))).astype(jnp.int32)
     aux = lambda t: jnp.concat([jnp.zeros(x) + i for i, x in enumerate([x[1] for x in sorted(cfg.counts[t].items())])])  # noqa
-    unit_types = jnp.concat((aux("allies"), aux("enemies"))).astype(jnp.int32)
+    unit_types = jnp.concat((aux("blue"), aux("red"))).astype(jnp.int32)
     mask = aid.obstacle_mask_fn(max([x["sight"] for x in cfg.types]))
     return Scene(unit_teams=unit_teams, unit_types=unit_types, mask=mask, **kwargs)  # type: ignore
 

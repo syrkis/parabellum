@@ -1,38 +1,17 @@
 place: "Tietgenkollegiet, Copenhagen, Denmark"
-size: 500
-knn: 5
-num_units: 16384
-num_allies: 8192
-num_enemies: 8192
+size: 100
+knn: 2
 counts:
-  allies:
-    # Infantry: 0
-    # Tank: 0
-    Airplane: 8192
-  enemies:
-    # Infantry: 0
-    # Tank: 0
-    Airplane: 8192
+  blue:
+    Airplane: 2
+  red:
+    Airplane: 2
 
 types:
-  - name: "Infantry"
-    health: 100
-    damage: 100
-    reload: 1
-    reach: 1
-    sight: 5
-    speed: 1
-  - name: "Tank"
-    health: 200
-    damage: 200
-    reload: 2
-    reach: 2
-    sight: 2
-    speed: 0.5
   - name: "Airplane"
     health: 500
     damage: 50
     reload: 3
     reach: 3
-    sight: 3
+    sight: 100
     speed: 2

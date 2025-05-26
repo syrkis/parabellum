@@ -19,19 +19,30 @@ class State:
 
 @dataclass
 class Obs:
-    idxs: Array
+    # idxs: Array
     type: Array
-    coords: Array
+    team: Array
+    dist: Array
+    coord: Array
+    reach: Array
+    sight: Array
     health: Array
-    # target: Array
+
+    @property
+    def ally(self):
+        return self.team == self.team[0]
+
+    @property
+    def enemy(self):
+        return self.team != self.team[0]
 
 
 @dataclass
 class Action:
     # coord: Float16[Array, "... 2"] = jnp.array([[0, 0]])  # noqa
     # kinds: Bool[Array, "..."] = jnp.array([0])
-    coord: Float16[Array, "... 2"] = field(default_factory=lambda: jnp.zeros(2))  # noqa
-    shoot: Bool[Array, "..."] = field(default_factory=lambda: jnp.array(True))  # self-harm by default
+    coord: Array  # = field(default_factory=lambda: jnp.zeros(2))  # noqa
+    shoot: Bool[Array, "..."]  # = # field(default_factory=lambda: jnp.array(False))  # self-harm by default
 
     @property
     def move(self):
@@ -61,3 +72,6 @@ class Scene:
     unit_type_reach: Array
     unit_type_sight: Array
     unit_type_speed: Array
+
+
+speed: Array
