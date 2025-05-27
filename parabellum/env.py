@@ -14,6 +14,15 @@ from parabellum.geo import geography_fn
 from parabellum.types import Action, State, Obs, Scene
 from parabellum import aid
 import equinox as eqx
+from collections import namedtuple
+
+
+# %% Rules ####################################################################
+kind = namedtuple("kind", ["health", "damage", "speed", "reach", "sight", "reload"])
+soldier = kind(health=100, damage=10, speed=1, reach=1, sight=10, reload=1)
+archer = kind(health=100, damage=10, speed=1, reach=1, sight=10, reload=1)
+drone = kind(health=100, damage=10, speed=1, reach=1, sight=10, reload=1)
+kinds = dict(soldier=soldier, archer=archer, drone=drone)
 
 
 # %% Dataclass ################################################################
@@ -29,15 +38,15 @@ class Env:
 
     @property
     def num_units(self):
-        return sum(self.cfg.counts.blue.values()) + sum(self.cfg.counts.red.values())
+        return sum(self.cfg.blue.values()) + sum(self.cfg.red.values())
 
     @property
     def num_blue(self):
-        return sum(self.cfg.counts.blue.values())
+        return sum(self.cfg.blue.values())
 
     @property
     def num_red(self):
-        return sum(self.cfg.counts.red.values())
+        return sum(self.cfg.red.values())
 
 
 # @eqx.filter_jit
@@ -84,14 +93,17 @@ def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
 # @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
     dist, idxs = knn(state.coords, k=env.cfg.knn, n=int(env.num_units**0.5))
-    mask = dist < scene.unit_type_sight[scene.unit_types[idxs][:, 0]][..., None]
+    mask = (dist < scene.unit_type_sight[scene.unit_types[idxs][:, 0]][..., None]) | (state.health[idxs] > 0)
+
     type = scene.unit_types[idxs] * mask
     team = scene.unit_teams[idxs] * mask
     health = state.health[idxs] * mask
-    coord = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]), state.coords) * mask[..., None]
     reach = scene.unit_type_reach[type] * mask
     sight = scene.unit_type_sight[type] * mask
-    obs = Obs(coord=coord, health=health, type=type, dist=dist * mask, team=team, reach=reach, sight=sight)
+    speed = scene.unit_type_speed[type] * mask
+
+    coord = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]), state.coords) * mask[..., None]
+    obs = Obs(coord=coord, health=health, type=type, dist=dist * mask, team=team, reach=reach, sight=sight, speed=speed)
     # debug.breakpoint()
     return obs
 
@@ -106,7 +118,7 @@ def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:
     # deltas = action.coord / jnp.linalg.norm(action.coord + random.normal(rng) * 0.01, axis=1)[..., None]
     speeds = scene.unit_type_speed[scene.unit_types][..., None]
     coords = state.coords + action.coord.clip(-speeds, speeds) * action.move[..., None]
-    coords = push_fn(coords + random.normal(rng, coords.shape) * 0.01)
+    # coords = push_fn(coords + random.normal(rng, coords.shape) * 0.01)
     bounds = ((coords < 0).any(axis=-1) | (coords >= env.cfg.size).any(axis=-1))[..., None]
     builds = (scene.terrain.building[*coords.astype(jnp.int32).T] > 0)[..., None]
     coords = jnp.where(bounds | builds, state.coords, coords)
@@ -148,14 +160,14 @@ def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # upda
 
 # @eqx.filter_jit
 def scene_fn(cfg):  # init's a scene
-    aux = lambda key: jnp.array([x[key] for x in sorted(cfg.types, key=lambda x: x.name)])  # noqa
+    aux = lambda key: jnp.array([x.__getattribute__(key) for x in kinds.values()])  # noqa
     attrs = ["health", "damage", "reload", "reach", "sight", "speed"]
     kwargs = {f"unit_type_{a}": aux(a) for a in attrs} | {"terrain": geography_fn(cfg.place, cfg.size)}
-    num_blue, num_red = sum(cfg.counts.blue.values()), sum(cfg.counts.red.values())
+    num_blue, num_red = sum(cfg.blue.values()), sum(cfg.red.values())
     unit_teams = jnp.concat((jnp.ones(num_blue), -jnp.ones(num_red))).astype(jnp.int32)
-    aux = lambda t: jnp.concat([jnp.zeros(x) + i for i, x in enumerate([x[1] for x in sorted(cfg.counts[t].items())])])  # noqa
+    aux = lambda t: jnp.concat([jnp.zeros(x) + i for i, x in enumerate([x[1] for x in sorted(cfg[t].items())])])  # noqa
     unit_types = jnp.concat((aux("blue"), aux("red"))).astype(jnp.int32)
-    mask = aid.obstacle_mask_fn(max([x["sight"] for x in cfg.types]))
+    mask = aid.obstacle_mask_fn(max([x.sight for x in kinds.values()]))
     return Scene(unit_teams=unit_teams, unit_types=unit_types, mask=mask, **kwargs)  # type: ignore
 
 
