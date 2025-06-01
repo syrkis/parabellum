@@ -72,4 +72,5 @@ class Scene:
 
     unit_type_reach: Array
     unit_type_sight: Array
+    unit_type_blast: Array
     unit_type_speed: Array

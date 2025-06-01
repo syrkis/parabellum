@@ -23,7 +23,7 @@ rng, key = random.split(random.PRNGKey(0))
 
 # %% Functions ###############################################################
 def action_fn(rng):
-    coord = random.normal(rng, (env.num_units, 2))
+    coord = (random.uniform(rng, (env.num_units, 2)) - 0.5) * scene.unit_type_reach[scene.unit_types][..., None]
     shoot = random.bernoulli(rng, 0.5, shape=(env.num_units,))
     return pb.types.Action(coord=coord, shoot=shoot)
 

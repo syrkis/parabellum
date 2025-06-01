@@ -19,16 +19,17 @@ from collections import namedtuple
 
 
 # %% Rules ####################################################################
-kind = namedtuple("kind", ["health", "damage", "speed", "reach", "sight", "reload"])
+kind = namedtuple("kind", ["health", "damage", "speed", "reach", "sight", "reload", "blast"])
 
 # Infantry (Rock) - Strong vs Armor, Weak vs Airplane
-infantry = kind(health=120, damage=15, speed=2, reach=2, sight=12, reload=2)
+infantry = kind(health=120, damage=15, speed=2, reach=5, sight=8, reload=1, blast=1)
 
-# Airplane (Paper) - Strong vs Infantry, Weak vs Armor
-airplane = kind(health=80, damage=20, speed=4, reach=6, sight=15, reload=1)
 
 # Armor (Scissors) - Strong vs Airplane, Weak vs Infantry
-armor = kind(health=150, damage=12, speed=1, reach=3, sight=8, reload=3)
+armor = kind(health=150, damage=12, speed=1, reach=10, sight=16, reload=2, blast=3)
+
+# Airplane (Paper) - Strong vs Infantry, Weak vs Armor
+airplane = kind(health=80, damage=20, speed=4, reach=20, sight=32, reload=4, blast=2)
 
 kinds = dict(infantry=infantry, airplane=airplane, armor=armor)
 
@@ -169,7 +170,7 @@ def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # upda
 # @eqx.filter_jit
 def scene_fn(cfg):  # init's a scene
     aux = lambda key: jnp.array([x.__getattribute__(key) for x in kinds.values()])  # noqa
-    attrs = ["health", "damage", "reload", "reach", "sight", "speed"]
+    attrs = ["health", "damage", "reload", "reach", "sight", "speed", "blast"]
     kwargs = {f"unit_type_{a}": aux(a) for a in attrs} | {"terrain": geography_fn(cfg.place, cfg.size)}
     num_blue, num_red = sum(cfg.blue.values()), sum(cfg.red.values())
     unit_teams = jnp.concat((jnp.ones(num_blue), -jnp.ones(num_red))).astype(jnp.int32)

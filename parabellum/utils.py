@@ -50,7 +50,8 @@ def svg_fn(scene, seq, action):
     start_pos = seq.coords[time, unit][:, ::-1]
     end_pos = start_pos + action.coord[time, unit][:, ::-1]
     fill = [red if t == -1 else blue for t in scene.unit_teams[unit]]
-    esch.anim_shot_fn(start_pos.tolist(), end_pos.tolist(), (time - 1).tolist(), dwg, color=fill)
+    size = jnp.sqrt(scene.unit_type_blast[scene.unit_types[unit]]).tolist()
+    esch.anim_shot_fn(start_pos.tolist(), end_pos.tolist(), (time - 1).tolist(), dwg, color=fill, size=size)
 
     esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sim.svg")
 
