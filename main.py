@@ -37,7 +37,7 @@ def step(state, inputs):
     idx, rng = inputs
     action = action_fn(rng)
     obs, state = env.step(rng, scene, state, action)
-    debug.breakpoint()
+    # debug.breakpoint()
     return state, state
 
 

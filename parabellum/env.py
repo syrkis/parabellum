@@ -12,17 +12,25 @@ from functools import partial
 
 from parabellum.geo import geography_fn
 from parabellum.types import Action, State, Obs, Scene
-from parabellum import aid
+from parabellum.utils import obstacle_mask_fn
+
 import equinox as eqx
 from collections import namedtuple
 
 
 # %% Rules ####################################################################
 kind = namedtuple("kind", ["health", "damage", "speed", "reach", "sight", "reload"])
-soldier = kind(health=100, damage=10, speed=1, reach=1, sight=10, reload=1)
-archer = kind(health=100, damage=10, speed=1, reach=1, sight=10, reload=1)
-drone = kind(health=100, damage=10, speed=1, reach=1, sight=10, reload=1)
-kinds = dict(soldier=soldier, archer=archer, drone=drone)
+
+# Infantry (Rock) - Strong vs Armor, Weak vs Airplane
+infantry = kind(health=120, damage=15, speed=2, reach=2, sight=12, reload=2)
+
+# Airplane (Paper) - Strong vs Infantry, Weak vs Armor
+airplane = kind(health=80, damage=20, speed=4, reach=6, sight=15, reload=1)
+
+# Armor (Scissors) - Strong vs Airplane, Weak vs Infantry
+armor = kind(health=150, damage=12, speed=1, reach=3, sight=8, reload=3)
+
+kinds = dict(infantry=infantry, airplane=airplane, armor=armor)
 
 
 # %% Dataclass ################################################################
@@ -167,7 +175,7 @@ def scene_fn(cfg):  # init's a scene
     unit_teams = jnp.concat((jnp.ones(num_blue), -jnp.ones(num_red))).astype(jnp.int32)
     aux = lambda t: jnp.concat([jnp.zeros(x) + i for i, x in enumerate([x[1] for x in sorted(cfg[t].items())])])  # noqa
     unit_types = jnp.concat((aux("blue"), aux("red"))).astype(jnp.int32)
-    mask = aid.obstacle_mask_fn(max([x.sight for x in kinds.values()]))
+    mask = obstacle_mask_fn(max([x.sight for x in kinds.values()]))
     return Scene(unit_teams=unit_teams, unit_types=unit_types, mask=mask, **kwargs)  # type: ignore
 
 
