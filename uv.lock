@@ -773,7 +773,7 @@ wheels = [
 
 [[package]]
 name = "esch"
-version = "0.0.10"
+version = "0.0.22"
 source = { directory = "../../esch" }
 dependencies = [
     { name = "chex" },

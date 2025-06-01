@@ -9,10 +9,15 @@ import esch
 import jax.numpy as jnp
 import numpy as np
 from einops import rearrange, repeat
-from jax import tree
+from jax import debug, tree
 from PIL import Image
 
+# Twilight colors (used in neurocope)
+red = "#EA344A"
+blue = "#2B60F6"
 
+
+# %% Plotting
 def gif_fn(scene, seq, scale=4):  # animate positions TODO: remove dead units
     pos = seq.coords.astype(int)
     cord = jnp.concat((jnp.arange(pos.shape[0]).repeat(pos.shape[1])[..., None], pos.reshape(-1, 2)), axis=1).T
@@ -23,12 +28,30 @@ def gif_fn(scene, seq, scale=4):  # animate positions TODO: remove dead units
     imgs[0].save("/Users/nobr/desk/s3/btc2sim/sim.gif", save_all=True, append_images=imgs[1:], duration=10, loop=0)
 
 
-def svg_fn(scene, seq):
+def svg_fn(scene, seq, action):
     size = scene.terrain.building.shape[0]
     dwg = esch.init(size, size)
     esch.grid_fn(np.array(scene.terrain.building).T, dwg, shape="square")
     arr = np.array(rearrange(seq.coords[:, :, ::-1], "time unit coord -> unit coord time"), dtype=np.float32)
-    esch.anim_sims_fn(arr, dwg, fps=100)
+
+    # add unit circles
+    fill = [red if t == -1 else blue for t in scene.unit_teams]
+    size = jnp.sqrt(scene.unit_types + 1).tolist()
+    esch.anim_sims_fn(arr, dwg, fill=fill, size=size)
+
+    # add range circles
+    reach = scene.unit_type_reach[scene.unit_types].tolist()
+    esch.anim_sims_fn(arr, dwg, size=reach, fill=["none" for _ in range(len(reach))])
+
+    # start_shots =
+    # print(tree.map(jnp.shape, action))
+    time, unit = jnp.where(action.shoot)
+    # debug.breakpoint()
+    start_pos = seq.coords[time, unit][:, ::-1]
+    end_pos = start_pos + action.coord[time, unit][:, ::-1]
+    fill = [red if t == -1 else blue for t in scene.unit_teams[unit]]
+    esch.anim_shot_fn(start_pos.tolist(), end_pos.tolist(), (time - 1).tolist(), dwg, color=fill)
+
     esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sim.svg")
 
 
@@ -43,12 +66,12 @@ def svgs_fn(scene, seq):
             group.translate((size + 1) * i, (size + 1) * j)
             arr = np.array(rearrange(sub_seq.coords[:, :, ::-1], "t unit coord -> unit coord t"), dtype=np.float32)
             esch.grid_fn(np.array(scene.terrain.building).T, dwg, group, shape="square")
-            esch.anim_sims_fn(arr, dwg, group, fps=48)
+            esch.anim_sims_fn(arr, dwg, group)
             dwg.add(group)
     esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sims.svg")
 
 
-# types
+# Geography stuff
 BBox = namedtuple("BBox", ["north", "south", "east", "west"])  # type: ignore
 
 
