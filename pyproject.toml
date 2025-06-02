@@ -1,6 +1,6 @@
 [project]
 name = "parabellum"
-version = "0.6.42"
+version = "0.0.46"
 description = "Parabellum environment for parallel warfare simulation"
 authors = [{ name = "Noah Syrkis", email = "desk@syrkis.com" }]
 requires-python = ">=3.11,<3.12"

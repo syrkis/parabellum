@@ -41,7 +41,11 @@ class Obs:
 @dataclass
 class Action:
     coord: Float32[Array, "... 2"]  # noqa
-    types: Int[Array, "..."]  # 0 = inactive, 1 = move, 2 = shoot
+    types: Int[Array, "..."]  # 0 = invalid, 1 = move, 2 = shoot
+
+    @property
+    def invalid(self):
+        return self.types == 0
 
     @property
     def move(self):
@@ -50,10 +54,6 @@ class Action:
     @property
     def shoot(self):
         return self.types == 2
-
-    @property
-    def active(self):
-        return self.types != 0
 
 
 @dataclass
@@ -66,8 +66,8 @@ class Terrain:
 
 @dataclass
 class Scene:
-    terrain: Terrain
     mask: Array
+    terrain: Terrain
 
     unit_types: Array
     unit_teams: Array

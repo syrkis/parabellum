@@ -123,16 +123,23 @@ def unit_pos_fn(unit_pos, self_pos):
 
 
 @eqx.filter_jit
-def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
-    # deltas = action.coord / jnp.linalg.norm(action.coord + random.normal(rng) * 0.01, axis=1)[..., None]
-    speed = scene.unit_type_speed[scene.unit_types][..., None]
-    coord = state.coord + action.coord.clip(-speed, speed) * action.move[..., None]
-    # coords = push_fn(coords + random.normal(rng, coords.shape) * 0.01)
-    bounds = ((coord < 0).any(axis=-1) | (coord >= env.cfg.size).any(axis=-1))[..., None]
-    builds = (scene.terrain.building[*coord.astype(jnp.int32).T] > 0)[..., None] # type: ignore
-    coord = jnp.where(bounds | builds, state.coord, coord)
-    # health = blast_fn(rng, env, scene, state, action)
-    return State(coord=coord, hp=state.hp)  # type: ignore
+def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:
+    args = env, scene, state, action
+    return State(coord=move_fn(*args), hp=blast_fn(*args))  # type: ignore
+
+def move_fn(env: Env, scene: Scene, state: State, action: Action):
+    speed = scene.unit_type_speed[scene.unit_types][..., None]  # max speed of a unit (step size, really)
+    coord = state.coord + action.coord.clip(-speed, speed) * action.move[..., None]  # new coords
+    bound = ((coord < 0).any(axis=-1) | (coord >= env.cfg.size).any(axis=-1))[..., None]  # masking outside map
+    stuff = (scene.terrain.building[*coord.astype(jnp.int32).T] > 0)[..., None] # type: ignore  # stuff in the way
+    return jnp.where(bound | stuff, state.coord, coord)  # compute new position
+
+def blast_fn(env: Env, scene: Scene, state: State, action: Action):
+    damage = scene.unit_type_damage[scene.unit_types] * action.shoot
+    coord = action.coord + state.coord
+    # debug.breakpoint()
+    return state.hp
+
 
 
 def push_fn(coords):
@@ -160,11 +167,11 @@ def push_fn(coords):
     return coords + total_repulsion * 0.5
 
 
-def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---
-    dist = la.norm(state.coord[None, ...] - (state.coord + action.coord)[:, None, ...], axis=-1)
-    hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.shoot[..., None]  # mask non attack act
-    damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
-    return state.hp - damage
+# def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---
+#     dist = la.norm(state.coord[None, ...] - (state.coord + action.coord)[:, None, ...], axis=-1)
+#     hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.shoot[..., None]  # mask non attack act
+#     damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
+#     return state.hp - damage
 
 
 # @eqx.filter_jit
