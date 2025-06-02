@@ -24,8 +24,8 @@ rng, key = random.split(random.PRNGKey(0))
 # %% Functions ###############################################################
 def action_fn(rng):
     coord = (random.uniform(rng, (env.num_units, 2)) - 0.5) * scene.unit_type_reach[scene.unit_types][..., None]
-    shoot = random.bernoulli(rng, 0.5, shape=(env.num_units,))
-    return pb.types.Action(coord=coord, shoot=shoot)
+    types = random.randint(rng, (env.num_units,), minval=0, maxval=3)
+    return pb.types.Action(coord=coord, types=types)
 
 
 @scan_tqdm(cfg.steps)

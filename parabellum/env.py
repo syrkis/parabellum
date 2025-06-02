@@ -75,7 +75,7 @@ def knn(coords, k, n):
 # @eqx.filter_jit
 def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
     keys = random.split(rng, 3)
-    health = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
+    hp = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
 
     # Create a probability mask: 0 where buildings exist, uniform elsewhere
     terrain_shape = scene.terrain.building.shape
@@ -95,24 +95,24 @@ def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
     # Convert flat indices back to 2D coordinates
     pos = jnp.float32(jnp.column_stack([flat_indices // terrain_shape[1], flat_indices % terrain_shape[1]]))
 
-    state = State(coords=pos + random.uniform(rng, pos.shape) * 0.1 - 0.5, health=health)
+    state = State(coord=pos + random.uniform(rng, pos.shape) * 0.1 - 0.5, hp=hp)
     return obs_fn(env, scene, state), state
 
 
 # @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, scene: Scene, state: State) -> Obs:  # return info about neighbors ---
-    dist, idxs = knn(state.coords, k=env.cfg.knn, n=int(env.num_units**0.5))
-    mask = (dist < scene.unit_type_sight[scene.unit_types[idxs][:, 0]][..., None]) | (state.health[idxs] > 0)
+    dist, idxs = knn(state.coord, k=env.cfg.knn, n=int(env.num_units**0.5))
+    mask = (dist < scene.unit_type_sight[scene.unit_types[idxs][:, 0]][..., None]) | (state.hp[idxs] > 0)
 
     type = scene.unit_types[idxs] * mask
     team = scene.unit_teams[idxs] * mask
-    health = state.health[idxs] * mask
+    hp = state.hp[idxs] * mask
     reach = scene.unit_type_reach[type] * mask
     sight = scene.unit_type_sight[type] * mask
     speed = scene.unit_type_speed[type] * mask
 
-    coord = unit_pos_fn((state.coords[idxs] - state.coords[:, None, ...]), state.coords) * mask[..., None]
-    obs = Obs(coord=coord, health=health, type=type, dist=dist * mask, team=team, reach=reach, sight=sight, speed=speed)
+    coord = unit_pos_fn((state.coord[idxs] - state.coord[:, None, ...]), state.coord) * mask[..., None]
+    obs = Obs(coord=coord, hp=hp, type=type, dist=dist * mask, team=team, reach=reach, sight=sight, speed=speed)
     # debug.breakpoint()
     return obs
 
@@ -125,14 +125,14 @@ def unit_pos_fn(unit_pos, self_pos):
 @eqx.filter_jit
 def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:  # update agents ---
     # deltas = action.coord / jnp.linalg.norm(action.coord + random.normal(rng) * 0.01, axis=1)[..., None]
-    speeds = scene.unit_type_speed[scene.unit_types][..., None]
-    coords = state.coords + action.coord.clip(-speeds, speeds) * action.move[..., None]
+    speed = scene.unit_type_speed[scene.unit_types][..., None]
+    coord = state.coord + action.coord.clip(-speed, speed) * action.move[..., None]
     # coords = push_fn(coords + random.normal(rng, coords.shape) * 0.01)
-    bounds = ((coords < 0).any(axis=-1) | (coords >= env.cfg.size).any(axis=-1))[..., None]
-    builds = (scene.terrain.building[*coords.astype(jnp.int32).T] > 0)[..., None]
-    coords = jnp.where(bounds | builds, state.coords, coords)
+    bounds = ((coord < 0).any(axis=-1) | (coord >= env.cfg.size).any(axis=-1))[..., None]
+    builds = (scene.terrain.building[*coord.astype(jnp.int32).T] > 0)[..., None] # type: ignore
+    coord = jnp.where(bounds | builds, state.coord, coord)
     # health = blast_fn(rng, env, scene, state, action)
-    return State(coords=coords, health=state.health)  # type: ignore
+    return State(coord=coord, hp=state.hp)  # type: ignore
 
 
 def push_fn(coords):
@@ -161,10 +161,10 @@ def push_fn(coords):
 
 
 def blast_fn(rng, env: Env, scene: Scene, state: State, action: Action):  # update agents ---
-    dist = la.norm(state.coords[None, ...] - (state.coords + action.coord)[:, None, ...], axis=-1)
+    dist = la.norm(state.coord[None, ...] - (state.coord + action.coord)[:, None, ...], axis=-1)
     hits = dist <= scene.unit_type_reach[scene.unit_types][None, ...] * action.shoot[..., None]  # mask non attack act
     damage = (hits * scene.unit_type_damage[scene.unit_types][None, ...]).sum(axis=-1)
-    return state.health - damage
+    return state.hp - damage
 
 
 # @eqx.filter_jit
@@ -183,7 +183,7 @@ def scene_fn(cfg):  # init's a scene
 @eqx.filter_jit
 def sight_fn(scene: Scene, state: State, dists, idxs):
     mask = dists < scene.unit_type_sight[scene.unit_types][..., None]  # mask for removing hidden
-    mask = mask | obstacle_fn(scene, state.coords[idxs].astype(jnp.int8))
+    mask = mask | obstacle_fn(scene, state.coord[idxs].astype(jnp.int8))
     return mask
 
 
@@ -199,4 +199,4 @@ def slice_fn(scene, source, target):  # returns a 10 x 10 view with unit at top 
     slice = lax.dynamic_slice(scene.terrain.building, coord, (scene.mask.shape[-1], scene.mask.shape[-1]))
     slice = lax.cond(delta[0] == 1, lambda: jnp.flip(slice), lambda: slice)
     slice = lax.cond(delta[1] == 1, lambda: jnp.flip(slice, axis=1), lambda: slice)
-    return (scene.mask[*jnp.abs(source - target)] * slice).sum() == 0
+    return (scene.mask[*jnp.abs(source - target)] * slice).sum() == 0  # type: ignore

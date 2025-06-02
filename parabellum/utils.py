@@ -19,7 +19,7 @@ blue = "#2B60F6"
 
 # %% Plotting
 def gif_fn(scene, seq, scale=4):  # animate positions TODO: remove dead units
-    pos = seq.coords.astype(int)
+    pos = seq.coord.astype(int)
     cord = jnp.concat((jnp.arange(pos.shape[0]).repeat(pos.shape[1])[..., None], pos.reshape(-1, 2)), axis=1).T
     idxs = cord[:, seq.health.flatten().astype(bool) > 0]
     mask = scene.terrain.building  # .at[*jnp.int32(gps.marks.T)].set(1)
@@ -32,7 +32,7 @@ def svg_fn(scene, seq, action):
     size = scene.terrain.building.shape[0]
     dwg = esch.init(size, size)
     esch.grid_fn(np.array(scene.terrain.building).T, dwg, shape="square")
-    arr = np.array(rearrange(seq.coords[:, :, ::-1], "time unit coord -> unit coord time"), dtype=np.float32)
+    arr = np.array(rearrange(seq.coord[:, :, ::-1], "time unit coord -> unit coord time"), dtype=np.float32)
 
     # add unit circles
     fill = [red if t == -1 else blue for t in scene.unit_teams]
@@ -47,7 +47,7 @@ def svg_fn(scene, seq, action):
     # print(tree.map(jnp.shape, action))
     time, unit = jnp.where(action.shoot)
     # debug.breakpoint()
-    start_pos = seq.coords[time, unit][:, ::-1]
+    start_pos = seq.coord[time, unit][:, ::-1]
     end_pos = start_pos + action.coord[time, unit][:, ::-1]
     fill = [red if t == -1 else blue for t in scene.unit_teams[unit]]
     size = jnp.sqrt(scene.unit_type_blast[scene.unit_types[unit]]).tolist()
@@ -58,14 +58,14 @@ def svg_fn(scene, seq, action):
 
 def svgs_fn(scene, seq):
     size = scene.terrain.building.shape[0]
-    side = jnp.sqrt(seq.coords.shape[0]).astype(int).item()
+    side = jnp.sqrt(seq.coord.shape[0]).astype(int).item()
     dwg = esch.init(size, size, side, side, line=True)
     for i in range(side):
         for j in range(side):
             sub_seq = tree.map(lambda x: x[i * side + j], seq)
             group = dwg.g()
             group.translate((size + 1) * i, (size + 1) * j)
-            arr = np.array(rearrange(sub_seq.coords[:, :, ::-1], "t unit coord -> unit coord t"), dtype=np.float32)
+            arr = np.array(rearrange(sub_seq.coord[:, :, ::-1], "t unit coord -> unit coord t"), dtype=np.float32)
             esch.grid_fn(np.array(scene.terrain.building).T, dwg, group, shape="square")
             esch.anim_sims_fn(arr, dwg, group)
             dwg.add(group)

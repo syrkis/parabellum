@@ -5,21 +5,22 @@
 # imports
 from chex import dataclass
 import jax.numpy as jnp
-from jaxtyping import Array, Bool, Float16
+from jaxtyping import Array, Bool, Float32, Int
 from dataclasses import field
 
 
 # dataclasses
 @dataclass
 class State:
-    coords: Array
-    health: Array
+    coord: Array
+    hp: Array
     # target: Array
 
 
 @dataclass
 class Obs:
     # idxs: Array
+    hp: Array
     type: Array
     team: Array
     dist: Array
@@ -27,7 +28,6 @@ class Obs:
     reach: Array
     sight: Array
     speed: Array
-    health: Array
 
     @property
     def ally(self):
@@ -40,14 +40,20 @@ class Obs:
 
 @dataclass
 class Action:
-    # coord: Float16[Array, "... 2"] = jnp.array([[0, 0]])  # noqa
-    # kinds: Bool[Array, "..."] = jnp.array([0])
-    coord: Array  # = field(default_factory=lambda: jnp.zeros(2))  # noqa
-    shoot: Bool[Array, "..."]  # = # field(default_factory=lambda: jnp.array(False))  # self-harm by default
+    coord: Float32[Array, "... 2"]  # noqa
+    types: Int[Array, "..."]  # 0 = inactive, 1 = move, 2 = shoot
 
     @property
     def move(self):
-        return ~self.shoot
+        return self.types == 1
+
+    @property
+    def shoot(self):
+        return self.types == 2
+
+    @property
+    def active(self):
+        return self.types != 0
 
 
 @dataclass
