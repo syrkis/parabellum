@@ -4,7 +4,7 @@
 
 # Imports ###################################################################
 import jax.numpy as jnp
-from jax import random, lax, debug
+from jax import random, lax
 import parabellum as pb
 from omegaconf import DictConfig
 from jax_tqdm import scan_tqdm
@@ -12,9 +12,9 @@ from jax_tqdm import scan_tqdm
 
 # %% Setup #################################################################
 loc = dict(place="Palazzo della Civiltà Italiana, Rome, Italy", size=64)
-red = dict(infantry=6, armor=6, airplane=6)
-blue = dict(infantry=6, armor=6, airplane=6)
-cfg = DictConfig(dict(steps=300, knn=4, blue=blue, red=red) | loc)
+red = dict(infantry=24, armor=24, airplane=24)
+blue = dict(infantry=24, armor=24, airplane=24)
+cfg = DictConfig(dict(steps=200, knn=4, blue=blue, red=red) | loc)
 
 # Access values using dot notation
 env, scene = pb.env.Env(cfg=cfg), pb.env.scene_fn(cfg)
@@ -40,4 +40,4 @@ def step(state, inputs):
 obs, state = env.reset(key, scene)
 rngs = random.split(rng, cfg.steps)
 state, (seq, action) = lax.scan(step, state, (jnp.arange(cfg.steps), rngs))
-pb.utils.svg_fn(scene, seq, action)
+pb.utils.svg_fn(scene, seq, action, fps=10)

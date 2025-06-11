@@ -1,6 +1,6 @@
 [project]
 name = "parabellum"
-version = "0.0.46"
+version = "0.0.48"
 description = "Parabellum environment for parallel warfare simulation"
 authors = [{ name = "Noah Syrkis", email = "desk@syrkis.com" }]
 requires-python = ">=3.11,<3.12"
@@ -35,6 +35,8 @@ dependencies = [
     "navix>=0.7.0,<0.8",
     "omegaconf>=2.3.0,<3",
     "jax-tqdm>=0.3.1,<0.4",
+    "ipython>=8.36.0",
+    "notebook>=7.4.2",
 ]
 
 [dependency-groups]

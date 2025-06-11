@@ -24,7 +24,6 @@ kind = namedtuple("kind", ["health", "damage", "speed", "reach", "sight", "reloa
 # Infantry (Rock) - Strong vs Armor, Weak vs Airplane
 infantry = kind(health=120, damage=15, speed=2, reach=5, sight=8, reload=1, blast=1)
 
-
 # Armor (Scissors) - Strong vs Airplane, Weak vs Infantry
 armor = kind(health=150, damage=12, speed=1, reach=10, sight=16, reload=2, blast=3)
 
@@ -74,28 +73,13 @@ def knn(coords, k, n):
 # %% Functions
 # @eqx.filter_jit
 def init_fn(rng: Array, env: Env, scene: Scene) -> Tuple[Obs, State]:
-    keys = random.split(rng, 3)
-    hp = jnp.ones(env.num_units) * scene.unit_type_health[scene.unit_types]
-
-    # Create a probability mask: 0 where buildings exist, uniform elsewhere
-    terrain_shape = scene.terrain.building.shape
-    prob_mask = jnp.ones(terrain_shape)  # Start with all ones
-    prob_mask = prob_mask.at[scene.terrain.building].set(0)  # Set to 0 where buildings exist
-
-    # Normalize the mask to create a probability distribution
-    prob_mask = prob_mask / jnp.sum(prob_mask)
-
-    # Flatten the mask and create indices for all grid positions
-    flat_probs = prob_mask.flatten()
-    indices = jnp.arange(flat_probs.size)
-
-    # Sample positions using categorical distribution
-    flat_indices = random.choice(keys[0], indices, shape=(env.num_units,), p=flat_probs, replace=True)
-
-    # Convert flat indices back to 2D coordinates
-    pos = jnp.float32(jnp.column_stack([flat_indices // terrain_shape[1], flat_indices % terrain_shape[1]]))
-
-    state = State(coord=pos + random.uniform(rng, pos.shape) * 0.1 - 0.5, hp=hp)
+    prob = jnp.ones(scene.terrain.building.shape).at[scene.terrain.building].set(0).flatten()  # Set
+    flat = random.choice(rng, jnp.arange(prob.size), shape=(env.num_units,), p=prob / prob.sum(), replace=True)
+    idxs = (flat % len(scene.terrain.building), flat // len(scene.terrain.building))
+    pos = jnp.float32(jnp.column_stack(idxs))
+    pos = jnp.ones_like(pos)  # * jnp.arange(scene.terrain.building.shape[1])
+    state = State(coord=pos, hp=scene.unit_type_health[scene.unit_types])
+    # debug.breakpoint()
     return obs_fn(env, scene, state), state
 
 
@@ -127,19 +111,20 @@ def step_fn(rng, env: Env, scene: Scene, state: State, action: Action) -> State:
     args = env, scene, state, action
     return State(coord=move_fn(*args), hp=blast_fn(*args))  # type: ignore
 
+
 def move_fn(env: Env, scene: Scene, state: State, action: Action):
     speed = scene.unit_type_speed[scene.unit_types][..., None]  # max speed of a unit (step size, really)
     coord = state.coord + action.coord.clip(-speed, speed) * action.move[..., None]  # new coords
     bound = ((coord < 0).any(axis=-1) | (coord >= env.cfg.size).any(axis=-1))[..., None]  # masking outside map
-    stuff = (scene.terrain.building[*coord.astype(jnp.int32).T] > 0)[..., None] # type: ignore  # stuff in the way
+    stuff = (scene.terrain.building[*coord.astype(jnp.int32).T] > 0)[..., None]  # type: ignore  # stuff in the way
     return jnp.where(bound | stuff, state.coord, coord)  # compute new position
+
 
 def blast_fn(env: Env, scene: Scene, state: State, action: Action):
     damage = scene.unit_type_damage[scene.unit_types] * action.shoot
     coord = action.coord + state.coord
     # debug.breakpoint()
     return state.hp
-
 
 
 def push_fn(coords):

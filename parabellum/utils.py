@@ -25,10 +25,10 @@ def gif_fn(scene, seq, scale=4):  # animate positions TODO: remove dead units
     mask = scene.terrain.building  # .at[*jnp.int32(gps.marks.T)].set(1)
     imgs = 1 - np.array(repeat(mask, "... -> a ...", a=len(pos)).at[*idxs].set(1))
     imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs * 255]  # type: ignore
-    imgs[0].save("/Users/nobr/desk/s3/btc2sim/sim.gif", save_all=True, append_images=imgs[1:], duration=10, loop=0)
+    imgs[0].save("/Users/syrkis/desk/s3/btc2sim/sim.gif", save_all=True, append_images=imgs[1:], duration=10, loop=0)
 
 
-def svg_fn(scene, seq, action):
+def svg_fn(scene, seq, action, fps=2):
     size = scene.terrain.building.shape[0]
     dwg = esch.init(size, size)
     esch.grid_fn(np.array(scene.terrain.building).T, dwg, shape="square")
@@ -37,11 +37,11 @@ def svg_fn(scene, seq, action):
     # add unit circles
     fill = [red if t == -1 else blue for t in scene.unit_teams]
     size = jnp.sqrt(scene.unit_types + 1).tolist()
-    esch.anim_sims_fn(arr, dwg, fill=fill, size=size)
+    esch.anim_sims_fn(arr, dwg, fill=fill, size=size, fps=fps)
 
     # add range circles
-    reach = scene.unit_type_reach[scene.unit_types].tolist()
-    esch.anim_sims_fn(arr, dwg, size=reach, fill=["none" for _ in range(len(reach))])
+    # reach = scene.unit_type_reach[scene.unit_types].tolist()
+    # esch.anim_sims_fn(arr, dwg, size=reach, fill=["none" for _ in range(len(reach))], fps=fps)
 
     # start_shots =
     # print(tree.map(jnp.shape, action))
@@ -51,9 +51,9 @@ def svg_fn(scene, seq, action):
     end_pos = start_pos + action.coord[time, unit][:, ::-1]
     fill = [red if t == -1 else blue for t in scene.unit_teams[unit]]
     size = jnp.sqrt(scene.unit_type_blast[scene.unit_types[unit]]).tolist()
-    esch.anim_shot_fn(start_pos.tolist(), end_pos.tolist(), (time - 1).tolist(), dwg, color=fill, size=size)
+    esch.anim_shot_fn(start_pos.tolist(), end_pos.tolist(), (time - 1).tolist(), dwg, color=fill, size=size, fps=fps)
 
-    esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sim.svg")
+    esch.save(dwg, "/Users/syrkis/desk/s3/btc2sim/sim.svg")
 
 
 def svgs_fn(scene, seq):
@@ -69,7 +69,7 @@ def svgs_fn(scene, seq):
             esch.grid_fn(np.array(scene.terrain.building).T, dwg, group, shape="square")
             esch.anim_sims_fn(arr, dwg, group)
             dwg.add(group)
-    esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sims.svg")
+    esch.save(dwg, "/Users/syrkis/desk/s3/btc2sim/sims.svg")
 
 
 # Geography stuff
@@ -102,5 +102,5 @@ def obstacle_mask_fn(limit):
 
     x = jnp.repeat(jnp.arange(limit), limit)
     y = jnp.tile(jnp.arange(limit), limit)
-    mask = jnp.stack([aux(*c) for c in jnp.stack((x, y)).T])
+    mask = jnp.stack([aux(*c) for c in jnp.stack((x, y)).T])  # type: ignore
     return mask.astype(jnp.int8).reshape(limit, limit, limit, limit)
