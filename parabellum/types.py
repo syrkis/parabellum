@@ -88,6 +88,7 @@ class Config:
     steps: int = 100
     rules: Rules = Rules()
     place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
+    sims: int = 10
     size: int = 64
     knn: int = 5
     blu: Team = field(default_factory=lambda: Team())
@@ -148,24 +149,16 @@ class Obs:
 @dataclass
 class Action:
     pos: Float32[Array, "... 2"]  # noqa
-    types: Int[Array, "..."]  # 0 = invalid, 1 = move, 2 = shoot
+    kind: Int[Array, "..."]  # 0 = invalid, 1 = move, 2 = shoot
 
     @property
     def invalid(self):
-        return self.types == 0
+        return self.kind == 0
 
     @property
     def move(self):
-        return self.types == 1
+        return self.kind == 1
 
     @property
     def shoot(self):
-        return self.types == 2
-
-
-# @dataclass
-# class Terrain:
-# building: Array
-# water: Array
-# forest: Array
-# basemap: Array
+        return self.kind == 2

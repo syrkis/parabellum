@@ -18,7 +18,7 @@ class Env:
     def __init__(self, cfg):
         self.cfg = cfg
 
-    def reset(self, rng: Array, cfg: Config) -> Tuple[Obs, State]:
+    def reset(self, cfg: Config, rng: Array) -> Tuple[Obs, State]:
         return init_fn(rng, self, cfg)
 
     def step(self, rng: Array, cfg: Config, state: State, action: Action) -> Tuple[Obs, State]:
