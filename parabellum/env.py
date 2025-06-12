@@ -8,7 +8,8 @@ from typing import Tuple
 
 import jax.numpy as jnp
 import jax.numpy.linalg as la
-from jax import Array, debug, lax, random, vmap
+from jax import debug, jit, lax, profiler, random, vmap
+from jaxtyping import Array
 
 from parabellum.types import Action, Config, Obs, State
 
@@ -17,41 +18,54 @@ from parabellum.types import Action, Config, Obs, State
 class Env:
     def __init__(self, cfg):
         self.cfg = cfg
+        self.obs_fn = jit(partial(obs_fn, self, cfg))
+        self.init_fn = jit(partial(init_fn, self, cfg))
+        self.step_fn = jit(partial(step_fn, self, cfg))
 
     def reset(self, cfg: Config, rng: Array) -> Tuple[Obs, State]:
-        return init_fn(rng, self, cfg)
+        return self.init_fn(rng)
 
-    def step(self, rng: Array, cfg: Config, state: State, action: Action) -> Tuple[Obs, State]:
-        return obs_fn(self, cfg, state), step_fn(rng, self, cfg, state, action)
+    def step(self, rng: Array, state: State, action: Action) -> Tuple[Obs, State]:
+        return self.obs_fn(state), self.step_fn(rng, state, action)
 
 
-# @eqx.filter_jit
+@profiler.annotate_function
 def knn(poss, k, n):
     def aux(inputs):
         batch_pos, batch_norms = inputs
         dots = jnp.dot(batch_pos, poss.T)
         dist = jnp.maximum(batch_norms[:, None] + norms[None, :] - 2 * dots, 0)
-        return lax.approx_min_k(dist, k=k)
+        return lax.approx_min_k(dist, k=k, recall_target=0.8)
 
-    norms = jnp.sum(poss**2, axis=1)
-    dist, idxs = lax.map(aux, (poss.reshape((n, n, 2)), norms.reshape(n, n)))
+    with profiler.TraceAnnotation("norms"):
+        norms = jnp.sum(poss**2, axis=1)
+
+    with profiler.TraceAnnotation("dists"):
+        dist, idxs = lax.map(aux, (poss.reshape((n, n, 2)), norms.reshape(n, n)))
     return dist.reshape((-1, k)) ** 0.5, idxs.reshape((-1, k))
 
 
 # %% Functions
 # @eqx.filter_jit
-def init_fn(rng: Array, env: Env, cfg: Config) -> Tuple[Obs, State]:
+# @profiler.annotate_function
+def init_fn(env: Env, cfg: Config, rng: Array) -> Tuple[Obs, State]:
+    # with profiler.TraceAnnotation("probability_map_setup"):
     prob = jnp.ones((cfg.size, cfg.size)).at[cfg.map].set(0).flatten()  # Set
+
+    # with profiler.TraceAnnotation("unit_placement"):
     flat = random.choice(rng, jnp.arange(prob.size), shape=(cfg.length,), p=prob / prob.sum(), replace=True)
     idxs = (flat // len(cfg.map), flat % len(cfg.map))
     pos = jnp.float32(jnp.column_stack(idxs))
-    # pos = jnp.ones_like(pos)  # * jnp.arange(scene.terrain.building.shape[1])
+
+    # with profiler.TraceAnnotation("initial_observation"):
     state = State(pos=pos, hp=cfg.rules.hp[cfg.types])
     return obs_fn(env, cfg, state), state
 
 
 # @eqx.filter_jit  # knn from env.cfg never changes, so we can jit it
 def obs_fn(env, cfg: Config, state: State) -> Obs:  # return info about neighbors ---
+    # norm = la.norm(state.pos[:, None, ...] - state.pos[None, ...], axis=-1)
+    # dist, idxs = lax.approx_min_k(norm, k=env.cfg.knn, recall_target=0.8)
     dist, idxs = knn(state.pos, k=env.cfg.knn, n=int(cfg.length**0.5))
     mask = (dist < cfg.rules.sight[cfg.types[idxs][:, 0]][..., None]) | (state.hp[idxs] > 0)
 
@@ -74,9 +88,9 @@ def unit_pos_fn(unit_pos, self_pos):
 
 
 # @eqx.filter_jit
-def step_fn(rng: Array, env: Env, cfg: Config, state: State, action: Action) -> State:
+def step_fn(env: Env, cfg: Config, rng: Array, state: State, action: Action) -> State:
     args = rng, env, cfg, state, action
-    return State(pos=move_fn(*args), hp=blast_fn(*args))  # type: ignore
+    return State(pos=move_fn(*args), hp=state.hp)  # blast_fn(*args))  # type: ignore
 
 
 def move_fn(rng: Array, env: Env, cfg: Config, state: State, action: Action):

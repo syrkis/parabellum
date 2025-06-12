@@ -55,7 +55,7 @@ def svg_fn(cfg: Config, seq, action, fps=2):
     esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sim.svg")
 
 
-def svgs_fn(cfg: Config, seq):
+def svgs_fn(cfg: Config, seq, fps=2):
     side = jnp.sqrt(seq.pos.shape[0]).astype(int).item()
     dwg = esch.init(cfg.size, cfg.size, side, side, line=True)
     for i in range(side):
@@ -63,9 +63,10 @@ def svgs_fn(cfg: Config, seq):
             sub_seq = tree.map(lambda x: x[i * side + j], seq)
             group = dwg.g()
             group.translate((cfg.size + 1) * i, (cfg.size + 1) * j)
-            arr = np.array(rearrange(sub_seq.pos[:, :, ::-1], "t unit pos -> unit pos t"), dtype=np.float32)
+            # arr = np.array(rearrange(sub_seq.pos[:, :, ::-1], "t unit pos -> unit pos t"), dtype=np.float32)
+            arr = np.array(rearrange(sub_seq.pos[:, :, ::-1], "time unit pos -> unit pos time"), dtype=np.float32)
             esch.grid_fn(np.array(cfg.map).T, dwg, group, shape="square")
-            esch.anim_sims_fn(arr, dwg, group)
+            esch.anim_sims_fn(arr, dwg, group, fps=fps)
             dwg.add(group)
     esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sims.svg")
 

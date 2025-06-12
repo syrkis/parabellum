@@ -63,11 +63,11 @@ class Rules:
 
 @dataclass
 class Team:
-    troop: int = 10
-    armor: int = 10
-    plane: int = 10
-    civil: int = 10
-    medic: int = 10
+    troop: int = 100000
+    armor: int = 100000
+    plane: int = 100000
+    civil: int = 100000
+    medic: int = 100000
 
     def __post_init__(self):
         # Precompute static arrays to avoid JAX concretization errors
@@ -85,11 +85,11 @@ class Team:
 
 @dataclass
 class Config:
-    steps: int = 100
+    steps: int = 1000
     rules: Rules = Rules()
     place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
-    sims: int = 10
-    size: int = 64
+    sims: int = 2
+    size: int = 128
     knn: int = 5
     blu: Team = field(default_factory=lambda: Team())
     red: Team = field(default_factory=lambda: Team())
@@ -99,6 +99,7 @@ class Config:
         self._types = jnp.concat((self.blu.types, self.red.types))
         self._teams = jnp.repeat(jnp.arange(2), jnp.array((self.blu.length, self.red.length)))
         self._length = self._teams.size
+        self._map = geography_fn(self.place, self.size)
 
     @property
     def types(self):
@@ -110,7 +111,7 @@ class Config:
 
     @property
     def map(self):
-        return geography_fn(self.place, self.size)
+        return self._map
 
     @property
     def length(self):

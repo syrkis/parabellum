@@ -13,3 +13,4 @@ parabellum/cache/
 .ruff_cache/
 .coverage
 build/
+profiler_logs/

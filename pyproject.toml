@@ -27,7 +27,7 @@ dependencies = [
     "distrax>=0.1.5,<0.2",
     "optax>=0.2.4,<0.3",
     "flax>=0.10.4,<0.11",
-    "numpy>=2.2.3,<3",
+    "numpy<2",
     "brax>=0.12.1,<0.13",
     "wandb>=0.19.7,<0.20",
     "flashbax>=0.1.2,<0.2",
@@ -37,10 +37,15 @@ dependencies = [
     "ipython>=8.36.0",
     "notebook>=7.4.2",
     "equinox>=0.12.2",
+    "tensorboard>=2.19.0",
+    "tensorflow>=2.19.0",
+    "xprof>=2.20.0",
 ]
 
 [dependency-groups]
-dev = ["esch", "ty>=0.0.1a6"]
+dev = [
+    "esch",
+]
 
 [tool.uv]
 
