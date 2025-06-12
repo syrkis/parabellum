@@ -43,11 +43,10 @@ def knn(poss, k, n):
 def init_fn(rng: Array, env: Env, cfg: Config) -> Tuple[Obs, State]:
     prob = jnp.ones((cfg.size, cfg.size)).at[cfg.map].set(0).flatten()  # Set
     flat = random.choice(rng, jnp.arange(prob.size), shape=(cfg.length,), p=prob / prob.sum(), replace=True)
-    idxs = (flat % len(cfg.map), flat // len(cfg.map))
+    idxs = (flat // len(cfg.map), flat % len(cfg.map))
     pos = jnp.float32(jnp.column_stack(idxs))
-    pos = jnp.ones_like(pos)  # * jnp.arange(scene.terrain.building.shape[1])
+    # pos = jnp.ones_like(pos)  # * jnp.arange(scene.terrain.building.shape[1])
     state = State(pos=pos, hp=cfg.rules.hp[cfg.types])
-    # debug.breakpoint()
     return obs_fn(env, cfg, state), state
 
 
