@@ -1,6 +1,6 @@
 [project]
 name = "parabellum"
-version = "0.0.48"
+version = "0.0.51"
 description = "Parabellum environment for parallel warfare simulation"
 authors = [{ name = "Noah Syrkis", email = "desk@syrkis.com" }]
 requires-python = ">=3.11,<3.12"
@@ -21,7 +21,6 @@ dependencies = [
     "cartopy>=0.23.0,<0.24",
     "stadiamaps>=3.2.1,<4",
     "cachier>=3.1.2,<4",
-    "equinox>=0.11.11,<0.12",
     "jax>=0.6.0,<0.7",
     "gymnax>=0.0.8,<0.0.9",
     "evosax>=0.1.6,<0.2",
@@ -37,6 +36,7 @@ dependencies = [
     "jax-tqdm>=0.3.1,<0.4",
     "ipython>=8.36.0",
     "notebook>=7.4.2",
+    "equinox>=0.12.2",
 ]
 
 [dependency-groups]

@@ -19,7 +19,7 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 from cachier import cachier
 from jax.scipy.signal import convolve
-from parabellum.types import Terrain
+# from parabellum.types import Terrain
 
 # %% Types
 Coords = Tuple[float, float]
@@ -78,7 +78,7 @@ def basemap_fn(bbox: BBox, gdf) -> Array:
 
 
 @cachier()
-def geography_fn(place, buffer) -> Terrain:
+def geography_fn(place, buffer):
     bbox = get_bbox(place, buffer)
     map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
     gdf = gpd.GeoDataFrame(map_data)
@@ -86,14 +86,14 @@ def geography_fn(place, buffer) -> Terrain:
     raster = raster_fn(gdf, shape=(buffer, buffer))
     basemap = jnp.rot90(basemap_fn(bbox, gdf), 3)
     kernel = jnp.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
-    trans = lambda x: x  # jnp.rot90(x, 3)  # noqa
-    terrain = Terrain(
-        building=trans(raster[0]),
-        water=trans(raster[1] - convolve(raster[1] * raster[2], kernel, mode="same") > 0),
-        forest=trans(jnp.logical_or(raster[3], raster[4])),
-        basemap=basemap,
-    )
-    terrain = tree.map(lambda x: x.astype(jnp.int16), terrain)
+    trans = lambda x: jnp.bool(x)  # jnp.rot90(x, 3)  # noqa
+    terrain = trans(raster[0])  # Terrain(
+    #        building=trans(raster[0]),
+    #        water=trans(raster[1] - convolve(raster[1] * raster[2], kernel, mode="same") > 0),
+    #        forest=trans(jnp.logical_or(raster[3], raster[4])),
+    #        basemap=basemap,
+    #    )
+    # terrain = tree.map(lambda x: x.astype(jnp.int16), terrain)
     return terrain
 
 

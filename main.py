@@ -3,41 +3,30 @@
 # by: Noah Syrkis
 
 # Imports ###################################################################
-import jax.numpy as jnp
 from jax import random, lax
 import parabellum as pb
-from omegaconf import DictConfig
-from jax_tqdm import scan_tqdm
-
-
-# %% Setup #################################################################
-loc = dict(place="Palazzo della Civiltà Italiana, Rome, Italy", size=64)
-red = dict(infantry=24, armor=24, airplane=24)
-blue = dict(infantry=24, armor=24, airplane=24)
-cfg = DictConfig(dict(steps=200, knn=4, blue=blue, red=red) | loc)
-
-# Access values using dot notation
-env, scene = pb.env.Env(cfg=cfg), pb.env.scene_fn(cfg)
-rng, key = random.split(random.PRNGKey(0))
+from jaxtyping import Array
+from functools import partial
 
 
 # %% Functions ###############################################################
-def action_fn(rng):
-    coord = (random.uniform(rng, (env.num_units, 2)) - 0.5) * scene.unit_type_reach[scene.unit_types][..., None]
-    types = random.randint(rng, (env.num_units,), minval=0, maxval=3)
-    return pb.types.Action(coord=coord, types=types)
+def action_fn(cfg: pb.types.Config, rng: Array) -> pb.types.Action:
+    pos = ((random.uniform(rng, (cfg.length, 2))) - 0.5) * cfg.rules.reach[cfg.types][..., None]
+    types = random.randint(rng, (cfg.length,), minval=0, maxval=3)
+    return pb.types.Action(pos=pos, types=types)
 
 
-@scan_tqdm(cfg.steps)
-def step(state, inputs):
-    idx, rng = inputs
-    action = action_fn(rng)
-    obs, state = env.step(rng, scene, state, action)
+def step_fn(cfg: pb.types.Config, state: pb.types.State, rng: Array):
+    action = action_fn(cfg, rng)
+    obs, state = env.step(rng, cfg, state, action)
     return state, (state, action)
 
 
 # %% Main #####################################################################
-obs, state = env.reset(key, scene)
+cfg = pb.types.Config()
+env = pb.env.Env(cfg=cfg)
+rng, key = random.split(random.PRNGKey(0))
+obs, state = env.reset(key, cfg)
 rngs = random.split(rng, cfg.steps)
-state, (seq, action) = lax.scan(step, state, (jnp.arange(cfg.steps), rngs))
-pb.utils.svg_fn(scene, seq, action, fps=10)
+state, (seq, action) = lax.scan(partial(step_fn, cfg), state, rngs)
+# pb.utils.svg_fn(cfg, seq, action, fps=10)
