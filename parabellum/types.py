@@ -29,35 +29,35 @@ class Rules:
     medic = Kind(hp=100, damage=-10, speed=3, reach=3, sight=10, reload=3, blast=1)
 
     @property
-    def hp(self):
+    def hp(self) -> Array:
         return jnp.array((self.troop.hp, self.armor.hp, self.plane.hp, self.civil.hp, self.medic.hp))
 
     @property
-    def damage(self):
+    def damage(self) -> Array:
         return jnp.array(
             (self.troop.damage, self.armor.damage, self.plane.damage, self.civil.damage, self.medic.damage)
         )
 
     @property
-    def reach(self):
+    def reach(self) -> Array:
         return jnp.array((self.troop.reach, self.armor.reach, self.plane.reach, self.civil.reach, self.medic.reach))
 
     @property
-    def speed(self):
+    def speed(self) -> Array:
         return jnp.array((self.troop.speed, self.armor.speed, self.plane.speed, self.civil.speed, self.medic.speed))
 
     @property
-    def sight(self):
+    def sight(self) -> Array:
         return jnp.array((self.troop.sight, self.armor.sight, self.plane.sight, self.civil.sight, self.medic.sight))
 
     @property
-    def reload(self):
+    def reload(self) -> Array:
         return jnp.array(
             (self.troop.reload, self.armor.reload, self.plane.reload, self.civil.reload, self.medic.reload)
         )
 
     @property
-    def blast(self):
+    def blast(self) -> Array:
         return jnp.array((self.troop.blast, self.armor.blast, self.plane.blast, self.civil.blast, self.medic.blast))
 
 
