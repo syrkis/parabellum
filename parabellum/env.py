@@ -40,17 +40,12 @@ def init_fn(cfg: Config, rng: Array) -> State:
 # @eqx.filter_jit
 def obs_fn(cfg: Config, state: State):  # return info about neighbors ---
     idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)
-    mask = (dist < cfg.rules.sight[cfg.types[idxs][:, 0]][..., None]) | (state.hp[idxs] > 0)
-    pos = unit_pos_fn((state.pos[idxs] - state.pos[:, None, ...]), state.pos) * mask[..., None]
+    mask = dist < cfg.rules.sight[cfg.types[idxs][:, 0]][..., None]  # | (state.hp[idxs] > 0)
+    pos = (state.pos[idxs] - state.pos[:, None, ...]).at[:, 0, :].set(state.pos) * mask[..., None]
     hp, type, team, reach, sight, speed = map(
         lambda x: x[idxs] * mask, (state.hp, cfg.types, cfg.teams, cfg.rules.reach, cfg.rules.sight, cfg.rules.speed)
-    )
+    )  # we are not masking dist. So we can see that SOMETHING is far-ish away
     return Obs(pos=pos, hp=hp, type=type, dist=dist, team=team, reach=reach, sight=sight, speed=speed)
-
-
-@partial(vmap, in_axes=(0, 0))
-def unit_pos_fn(unit_pos, self_pos):
-    return unit_pos.at[0].set(self_pos)
 
 
 # @eqx.filter_jit
