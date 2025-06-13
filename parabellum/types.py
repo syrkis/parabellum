@@ -5,9 +5,7 @@
 # imports
 from chex import dataclass
 from jaxtyping import Array, Float32, Int
-from dataclasses import field
 import jax.numpy as jnp
-from parabellum.geo import geography_fn
 
 
 @dataclass
@@ -63,11 +61,11 @@ class Rules:
 
 @dataclass
 class Team:
-    troop: int = 100000
-    armor: int = 100000
-    plane: int = 100000
-    civil: int = 100000
-    medic: int = 100000
+    troop: int = 1_000
+    armor: int = 1_000
+    plane: int = 1_000
+    civil: int = 1_000
+    medic: int = 1_000
 
     def __post_init__(self):
         # Precompute static arrays to avoid JAX concretization errors
@@ -81,41 +79,6 @@ class Team:
     @property
     def types(self) -> Array:
         return self._types
-
-
-@dataclass
-class Config:
-    steps: int = 1000
-    rules: Rules = Rules()
-    place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
-    sims: int = 2
-    size: int = 128
-    knn: int = 5
-    blu: Team = field(default_factory=lambda: Team())
-    red: Team = field(default_factory=lambda: Team())
-
-    def __post_init__(self):
-        # Precompute static arrays to avoid JAX concretization errors
-        self._types = jnp.concat((self.blu.types, self.red.types))
-        self._teams = jnp.repeat(jnp.arange(2), jnp.array((self.blu.length, self.red.length)))
-        self._length = self._teams.size
-        self._map = geography_fn(self.place, self.size)
-
-    @property
-    def types(self):
-        return self._types
-
-    @property
-    def teams(self):
-        return self._teams
-
-    @property
-    def map(self):
-        return self._map
-
-    @property
-    def length(self):
-        return self._length
 
 
 # dataclasses
