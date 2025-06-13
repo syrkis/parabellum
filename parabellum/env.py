@@ -9,7 +9,7 @@ from typing import Tuple
 import equinox as eqx
 import jax.numpy as jnp
 import jax.numpy.linalg as la
-from jax import lax, random, vmap, jit
+from jax import lax, random, vmap, jit, tree
 from jaxtyping import Array
 import jaxkd as jk
 
@@ -41,17 +41,11 @@ def init_fn(cfg: Config, rng: Array) -> State:
 def obs_fn(cfg: Config, state: State):  # return info about neighbors ---
     idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)
     mask = (dist < cfg.rules.sight[cfg.types[idxs][:, 0]][..., None]) | (state.hp[idxs] > 0)
-
-    type = cfg.types[idxs] * mask
-    team = cfg.teams[idxs] * mask
-    hp = state.hp[idxs] * mask
-    reach = cfg.rules.reach[type] * mask
-    sight = cfg.rules.sight[type] * mask
-    speed = cfg.rules.speed[type] * mask
-
     pos = unit_pos_fn((state.pos[idxs] - state.pos[:, None, ...]), state.pos) * mask[..., None]
-    obs = Obs(pos=pos, hp=hp, type=type, dist=dist * mask, team=team, reach=reach, sight=sight, speed=speed)
-    return obs
+    hp, type, team, reach, sight, speed = map(
+        lambda x: x[idxs] * mask, (state.hp, cfg.types, cfg.teams, cfg.rules.reach, cfg.rules.sight, cfg.rules.speed)
+    )
+    return Obs(pos=pos, hp=hp, type=type, dist=dist, team=team, reach=reach, sight=sight, speed=speed)
 
 
 @partial(vmap, in_axes=(0, 0))
