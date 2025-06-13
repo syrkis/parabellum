@@ -13,50 +13,54 @@ from jax import numpy as jnp
 from jaxtyping import Array
 
 import parabellum as pb
-from parabellum.types import Action, State
+from parabellum.types import Action, State, Config
 
 
 # %% Functions ###############################################################
-# @profiler.annotate_function
-def action_fn(env: pb.env.Env, rng: Array) -> Action:
-    pos = random.normal(rng, (env.length, 2)) * env.rules.reach[env.types][..., None]
-    kind = random.randint(rng, (env.length,), minval=0, maxval=3)
+# %% Functions ###############################################################
+def action_fn(cfg: Config, rng: Array) -> Action:
+    pos = random.normal(rng, (cfg.length, 2)) * cfg.rules.reach[cfg.types][..., None]
+    kind = random.randint(rng, (cfg.length,), minval=0, maxval=3)
     return Action(pos=pos, kind=kind)
 
 
-# @profiler.annotate_function
-def step_fn(env: pb.env.Env, state: State, rng: Array) -> Tuple[State, Tuple[State, Action]]:
-    action = action_fn(env, rng)
-    obs, state = env.step(rng, state, action)
+def step_fn(cfg: Config, state: State, rng: Array) -> Tuple[State, Tuple[State, Action]]:
+    action = action_fn(cfg, rng)
+    obs, state = env.step(cfg, rng, state, action)
     return state, (state, action)
 
 
-# @profiler.annotate_function
-def traj_fn(env, step, state, rng) -> Tuple[State, Tuple[State, Action]]:
-    rngs = random.split(rng, env.steps)
+def traj_fn(cfg: Config, step, state, rng) -> Tuple[State, Tuple[State, Action]]:
+    rngs = random.split(rng, cfg.steps)
     return lax.scan(step, state, rngs)
 
 
 # %% Main #####################################################################
 env = pb.env.Env()
-init_key, traj_key = random.split(random.PRNGKey(0), (2, env.sims))
+cfg = Config()  # Extract the config once
 
-traj = vmap(partial(traj_fn, env, partial(step_fn, env)))  # vector trajs
-init = jit(vmap(env.init)).lower(init_key).compile()  # vector inits
+init_key, traj_key = random.split(random.PRNGKey(0), (2, cfg.sims))
+
+# Pass config directly to compiled functions
+vinit = jit(vmap(partial(env.init, cfg)))
+# vstep = jit(partial(step_fn, cfg))
+# vtraj = jit(vmap(partial(traj_fn, cfg, vstep)))
+
+print("Testing with config passed directly:")
 tic = time.time()
-
-obs, state = init(init_key)
-print(state.hp[0, 0])
+obs, state = vinit(init_key)
+state.hp.block_until_ready()
 toc = time.time()
-print(f"init time: {toc - tic:.2f} seconds")
+print(f"First call: {toc - tic:.4f} seconds")
 
-obs, state = init(traj_key)
-print(state.hp[0, 0])
 tic = time.time()
-print(f"init time: {tic - toc:.2f} seconds")
-
-
-state, (state_seq, action_seq) = traj(state, traj_key)
-print(state.hp[0, 0])
+obs, state = vinit(init_key)  # Same input
+state.hp.block_until_ready()
 toc = time.time()
-print(f"traj time: {toc - tic:.2f} seconds")
+print(f"Second call (same): {toc - tic:.4f} seconds")
+
+tic = time.time()
+obs, state = vinit(traj_key)  # Different input
+state.hp.block_until_ready()
+toc = time.time()
+print(f"Third call (different): {toc - tic:.4f} seconds")

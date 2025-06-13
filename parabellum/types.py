@@ -6,6 +6,8 @@
 from chex import dataclass
 from jaxtyping import Array, Float32, Int
 import jax.numpy as jnp
+from parabellum.geo import geography_fn
+from dataclasses import field
 
 
 @dataclass
@@ -19,6 +21,7 @@ class Kind:
     blast: int
 
 
+@dataclass
 class Rules:
     troop = Kind(hp=120, damage=15, speed=2, reach=5, sight=8, reload=1, blast=1)
     armor = Kind(hp=150, damage=12, speed=1, reach=10, sight=16, reload=2, blast=3)
@@ -126,3 +129,23 @@ class Action:
     @property
     def shoot(self):
         return self.kind == 2
+
+
+@dataclass
+class Config:  # Remove frozen=True for now
+    steps: int = 1000
+    place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
+    sims: int = 4
+    size: int = 128
+    knn: int = 5
+    blu: Team = field(default_factory=lambda: Team())
+    red: Team = field(default_factory=lambda: Team())
+    rules: Rules = field(default_factory=lambda: Rules())
+
+    def __post_init__(self):
+        # Pre-compute everything once
+        self.types = jnp.concat((self.blu.types, self.red.types))
+        self.teams = jnp.repeat(jnp.arange(2), jnp.array((self.blu.length, self.red.length)))
+        self.map = geography_fn(self.place, self.size)  # Computed once here
+        self.length = self.blu.length + self.red.length
+        self.root = jnp.int32(jnp.sqrt(self.length))
