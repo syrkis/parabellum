@@ -7,7 +7,6 @@ import time
 from functools import partial
 from typing import Tuple
 
-import numpy as np
 from jax import block_until_ready, jit, lax, profiler, random, tree, vmap
 from jax import numpy as jnp
 from jaxtyping import Array
@@ -36,31 +35,26 @@ def traj_fn(cfg: Config, step, state, rng) -> Tuple[State, Tuple[State, Action]]
 
 
 # %% Main #####################################################################
-env = pb.env.Env()
-cfg = Config()  # Extract the config once
-
+env, cfg = pb.env.Env(), Config()
+init = vmap(jit(partial(env.init, cfg)))
+# step = partial(env.step, cfg)
 init_key, traj_key = random.split(random.PRNGKey(0), (2, cfg.sims))
-
-# Pass config directly to compiled functions
-vinit = jit(vmap(partial(env.init, cfg)))
-# vstep = jit(partial(step_fn, cfg))
-# vtraj = jit(vmap(partial(traj_fn, cfg, vstep)))
 
 print("Testing with config passed directly:")
 tic = time.time()
-obs, state = vinit(init_key)
+obs, state = init(init_key)
 state.hp.block_until_ready()
 toc = time.time()
 print(f"First call: {toc - tic:.4f} seconds")
 
 tic = time.time()
-obs, state = vinit(init_key)  # Same input
+obs, state = init(init_key)
 state.hp.block_until_ready()
 toc = time.time()
 print(f"Second call (same): {toc - tic:.4f} seconds")
 
 tic = time.time()
-obs, state = vinit(traj_key)  # Different input
+obs, state = init(traj_key)
 state.hp.block_until_ready()
 toc = time.time()
 print(f"Third call (different): {toc - tic:.4f} seconds")

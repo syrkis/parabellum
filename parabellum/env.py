@@ -11,37 +11,21 @@ import jax.numpy as jnp
 import jax.numpy.linalg as la
 from jax import lax, random, vmap, jit
 from jaxtyping import Array
-from chex import dataclass
-from dataclasses import field
+import jaxkd as jk
+
+# from chex import dataclass
 from parabellum.types import Action, Obs, State, Config
 
 
 # %% Dataclass ################################################################
-@dataclass
+# @dataclass
 class Env:
-    # cfg: Config = field(default_factory=lambda: Config())
-
-    def init(self, cfg: Config, rng: Array) -> Tuple[Obs, State]:
+    def init(self, cfg: Config, rng: Array):  # -> Tuple[Obs, State]:
         state = init_fn(cfg, rng)  # without jit this takes forever
         return obs_fn(cfg, state), state
 
     def step(self, cfg: Config, rng: Array, state: State, action: Action) -> Tuple[Obs, State]:
         return obs_fn(cfg, state), step_fn(cfg, rng, state, action)
-
-
-@jit
-def knn(pos: Array):
-    k, n = 4, 100
-
-    def aux(inputs):
-        batch_pos, batch_norms = inputs
-        dots = jnp.dot(batch_pos, pos.T)
-        dist = jnp.maximum(batch_norms[:, None] + norms[None, :] - 2 * dots, 0)
-        return lax.approx_min_k(dist, k=k, recall_target=0.8)
-
-    norms = jnp.sum(pos**2, axis=1)
-    dist, idxs = lax.map(aux, (pos.reshape((n, n, 2)), norms.reshape(n, n)))
-    return dist.reshape((-1, k)) ** 0.5, idxs.reshape((-1, k))
 
 
 def init_fn(cfg: Config, rng: Array) -> State:
@@ -53,8 +37,9 @@ def init_fn(cfg: Config, rng: Array) -> State:
     return state
 
 
-def obs_fn(cfg: Config, state: State) -> Obs:  # return info about neighbors ---
-    dist, idxs = knn(state.pos)
+# @eqx.filter_jit
+def obs_fn(cfg: Config, state: State):  # return info about neighbors ---
+    idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)
     mask = (dist < cfg.rules.sight[cfg.types[idxs][:, 0]][..., None]) | (state.hp[idxs] > 0)
 
     type = cfg.types[idxs] * mask

@@ -40,6 +40,7 @@ dependencies = [
     "tensorboard>=2.19.0",
     "tensorflow>=2.19.0",
     "xprof>=2.20.0",
+    "jaxkd>=0.1.0",
 ]
 
 [dependency-groups]

@@ -1716,6 +1716,18 @@ wheels = [
 ]
 
 [[package]]
+name = "jaxkd"
+version = "0.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "jax" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/8c/c8/a11c7e43193600eb2d4ca321605659c7478c84dc44cb1db1f48fd7e7399e/jaxkd-0.1.0.tar.gz", hash = "sha256:44abfda3b07e09039d2c7e853ab88b1230f98bb84fa135ab53c3415d70f904ef", size = 134714, upload-time = "2025-05-26T06:34:33.876Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/3e/08/57fae683d6ed66e49bc6181b34d2d046bbd38aff4207017bd9793951c381/jaxkd-0.1.0-py3-none-any.whl", hash = "sha256:9e94f53558810922072b3866dadd8c903120dd68de3eadf9a84e5d33c7aed785", size = 9337, upload-time = "2025-05-26T06:34:32.349Z" },
+]
+
+[[package]]
 name = "jaxlib"
 version = "0.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2697,6 +2709,7 @@ dependencies = [
     { name = "ipython" },
     { name = "jax" },
     { name = "jax-tqdm" },
+    { name = "jaxkd" },
     { name = "jaxtyping" },
     { name = "jupyterlab" },
     { name = "navix" },
@@ -2740,6 +2753,7 @@ requires-dist = [
     { name = "ipython", specifier = ">=8.36.0" },
     { name = "jax", specifier = ">=0.6.0,<0.7" },
     { name = "jax-tqdm", specifier = ">=0.3.1,<0.4" },
+    { name = "jaxkd", specifier = ">=0.1.0" },
     { name = "jaxtyping", specifier = ">=0.2.33,<0.3" },
     { name = "jupyterlab", specifier = ">=4.2.2,<5" },
     { name = "navix", specifier = ">=0.7.0,<0.8" },
