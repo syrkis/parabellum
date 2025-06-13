@@ -42,4 +42,6 @@ init = vmap(jit(partial(env.init, cfg)))
 traj = vmap(jit(traj_fn))
 
 obs, state = init(init_key)
+print(state.hp[0, 0])
 state, (seq, action) = traj(state, init_key)
+print(state.hp[0, 0])

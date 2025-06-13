@@ -6,9 +6,7 @@
 from functools import partial
 from typing import Tuple
 
-import equinox as eqx
 import jax.numpy as jnp
-import jax.numpy.linalg as la
 from jax import lax, random, vmap, jit, tree, debug
 from jaxtyping import Array
 import jaxkd as jk
@@ -17,8 +15,6 @@ import jaxkd as jk
 from parabellum.types import Action, Obs, State, Config
 
 
-# %% Dataclass ################################################################
-# @dataclass
 class Env:
     def init(self, cfg: Config, rng: Array):  # -> Tuple[Obs, State]:
         state = init_fn(cfg, rng)  # without jit this takes forever
@@ -30,7 +26,7 @@ class Env:
 
 def init_fn(cfg: Config, rng: Array) -> State:
     prob = jnp.ones((cfg.size, cfg.size)).at[cfg.map].set(0).flatten()  # Set
-    flat = random.choice(rng, jnp.arange(prob.size), shape=(cfg.length,), p=prob / prob.sum(), replace=True)
+    flat = random.choice(rng, jnp.arange(prob.size), shape=(cfg.length,), p=prob, replace=True)
     idxs = (flat // len(cfg.map), flat % len(cfg.map))
     pos = jnp.float32(jnp.column_stack(idxs))
     state = State(pos=pos, hp=cfg.rules.hp[cfg.types])
@@ -39,7 +35,7 @@ def init_fn(cfg: Config, rng: Array) -> State:
 
 # @eqx.filter_jit
 def obs_fn(cfg: Config, state: State):  # return info about neighbors ---
-    idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)  # <- this is amazing
+    idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)
     mask = dist < cfg.rules.sight[cfg.types[idxs][:, 0]][..., None]  # | (state.hp[idxs] > 0)
     pos = (state.pos[idxs] - state.pos[:, None, ...]).at[:, 0, :].set(state.pos) * mask[..., None]
     hp, type, team, reach, sight, speed = map(
@@ -50,70 +46,36 @@ def obs_fn(cfg: Config, state: State):  # return info about neighbors ---
 
 # @eqx.filter_jit
 def step_fn(cfg: Config, rng: Array, state: State, action: Action) -> State:
-    args = rng, cfg, state, action
-    return State(pos=move_fn(*args), hp=blast_fn(*args))  # type: ignore
+    idx, norm = jk.extras.query_neighbors_pairwise(state.pos + action.pos, state.pos, k=10)
+    args = rng, cfg, state, action, idx, norm
+    return State(pos=partial(push_fn, cfg, rng, idx, norm)(move_fn(*args)), hp=blast_fn(*args))  # type: ignore
 
 
-def move_fn(rng: Array, cfg: Config, state: State, action: Action):
+def move_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, norm: Array):
     speed = cfg.rules.speed[cfg.types][..., None]  # max speed of a unit (step size, really)
     pos = state.pos + action.pos.clip(-speed, speed) * action.move[..., None]  # new poss
-    bound = ((pos < 0).any(axis=-1) | (pos >= cfg.size).any(axis=-1))[..., None]  # masking outside map
-    stuff = (cfg.map[*pos.astype(jnp.int32).T] > 0)[..., None]  # type: ignore  # stuff in the way
-    return jnp.where(bound | stuff, state.pos, pos)  # compute new position
+    mask = ((pos < 0).any(axis=-1) | (pos >= cfg.size).any(axis=-1))[..., None]  # masking outside map
+    mask = mask | (cfg.map[*pos.astype(jnp.int32).T] > 0)[..., None]  # type: ignore  # stuff in the way
+    return jnp.where(mask, pos, state.pos)  # compute new position
 
 
-def blast_fn(rng: Array, cfg: Config, state: State, action: Action) -> Array:  # update agents ---
-    idx, norm = jk.extras.query_neighbors_pairwise(state.pos + action.pos, state.pos, k=10)
-    aux = lambda d, i, n, b: jnp.zeros(cfg.length, dtype=jnp.int32).at[i].add(d)  # noqa
-    dam = vmap(aux)(cfg.rules.damage[cfg.types] * action.shoot, idx, norm, cfg.rules.blast[cfg.types]).sum(axis=1)
-    return state.hp - dam
+def blast_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, norm: Array) -> Array:
+    dam = (cfg.rules.damage[cfg.types] * action.shoot)[..., None] * jnp.ones_like(idx)
+    return state.hp - jnp.zeros(cfg.length, dtype=jnp.int32).at[idx.flatten()].add(dam.flatten())
 
 
-# @eqx.filter_jit
-def sight_fn(cfg: Config, state: State, dists, idxs):
+def push_fn(cfg: Config, rng: Array, idx: Array, norm: Array, pos: Array) -> Array:
+    radii = 2.0  # hardcoded minimum distance
+    force = 0.5  # hardcoded repulsion force multiplier
+    pos_diff = pos[:, None, :] - pos[idx]  # direction away from neighbors
+    mask = (norm < radii) & (norm > 0)
+    return pos + jnp.where(mask[..., None], pos_diff * force / (norm[..., None] + 1e-6), 0.0).sum(axis=1)
+
+
+def sight_fn(cfg: Config, state: State, dists: Array, idxs: Array):
     mask = dists < cfg.rules.sight[cfg.types][..., None]  # mask for removing hidden
     mask = mask  # | obstacle_fn(cfg, state.pos[idxs].astype(jnp.int8))
     return mask
-
-
-# def blast_fn(cfg: Config, cfg: Config, state: State, action: Action):
-# damage = cfg.rules.damage[cfg.types] * action.shoot
-# pos = action.pos + state.pos
-# debug.breakpoint()
-# return state.hp
-
-
-# def push_fn(poss):
-#     """Push units away from each other if they're too close."""
-#     return poss
-#     distances = la.norm(poss[:, None] - poss, axis=-1)
-#     too_close = (distances > 0) & (distances < 2.0)  # Units closer than 2 units
-
-#     # Calculate unit displacement vectors
-#     disp_vectors = poss[:, None] - poss
-
-#     # Normalize displacement vectors (avoiding division by zero)
-#     norms = distances[..., None]
-#     safe_norms = jnp.where(norms > 0, norms, 1.0)
-#     normalized_disp = disp_vectors / safe_norms
-
-#     # Calculate repulsion forces (stronger when closer)
-#     repulsion_strength = jnp.where(too_close, 1.0 / jnp.maximum(distances, 0.1), 0.0)
-#     repulsion = normalized_disp * repulsion_strength[..., None]
-
-#     # Sum all repulsion forces for each unit
-#     total_repulsion = jnp.sum(repulsion, axis=1)
-
-#     # Apply the repulsion with a scaling factor
-#     return poss + total_repulsion * 0.5
-
-
-# @eqx.filter_jit
-# def scene_fn(cfg: cfg) -> Scene:  # init's a scene
-# unit_teams = jnp.concat((jnp.zeros(len(cfg.blu)), jnp.ones(len(cfg.red))))
-# unit_types = jnp.concat((cfg.blu.types, cfg.red.types))
-# terrain = geography_fn(cfg.place, cfg.size)
-# return Scene(unit_teams=unit_teams, unit_types=unit_types, terrain=terrain, cfg=cfg)
 
 
 # @partial(vmap, in_axes=(None, 0))  # 5 x 2 # not the best name for a fn

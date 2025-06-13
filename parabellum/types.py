@@ -64,11 +64,11 @@ class Rules:
 
 @dataclass
 class Team:
-    troop: int = 1_000
-    armor: int = 1_000
-    plane: int = 1_000
-    civil: int = 1_000
-    medic: int = 1_000
+    troop: int = 100
+    armor: int = 100
+    plane: int = 100
+    civil: int = 100
+    medic: int = 100
 
     def __post_init__(self):
         # Precompute static arrays to avoid JAX concretization errors
@@ -133,10 +133,10 @@ class Action:
 
 @dataclass
 class Config:  # Remove frozen=True for now
-    steps: int = 1000
+    steps: int = 100
     place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
-    sims: int = 4
-    size: int = 128
+    sims: int = 9
+    size: int = 64
     knn: int = 5
     blu: Team = field(default_factory=lambda: Team())
     red: Team = field(default_factory=lambda: Team())
