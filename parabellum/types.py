@@ -135,7 +135,7 @@ class Action:
 class Config:  # Remove frozen=True for now
     steps: int = 1000
     place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
-    sims: int = 16
+    sims: int = 4
     size: int = 128
     knn: int = 5
     blu: Team = field(default_factory=lambda: Team())

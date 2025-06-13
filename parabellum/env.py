@@ -9,7 +9,7 @@ from typing import Tuple
 import equinox as eqx
 import jax.numpy as jnp
 import jax.numpy.linalg as la
-from jax import lax, random, vmap, jit, tree
+from jax import lax, random, vmap, jit, tree, debug
 from jaxtyping import Array
 import jaxkd as jk
 
@@ -39,7 +39,7 @@ def init_fn(cfg: Config, rng: Array) -> State:
 
 # @eqx.filter_jit
 def obs_fn(cfg: Config, state: State):  # return info about neighbors ---
-    idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)
+    idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)  # <- this is amazing
     mask = dist < cfg.rules.sight[cfg.types[idxs][:, 0]][..., None]  # | (state.hp[idxs] > 0)
     pos = (state.pos[idxs] - state.pos[:, None, ...]).at[:, 0, :].set(state.pos) * mask[..., None]
     hp, type, team, reach, sight, speed = map(
@@ -51,7 +51,7 @@ def obs_fn(cfg: Config, state: State):  # return info about neighbors ---
 # @eqx.filter_jit
 def step_fn(cfg: Config, rng: Array, state: State, action: Action) -> State:
     args = rng, cfg, state, action
-    return State(pos=move_fn(*args), hp=state.hp)  # blast_fn(*args))  # type: ignore
+    return State(pos=move_fn(*args), hp=blast_fn(*args))  # type: ignore
 
 
 def move_fn(rng: Array, cfg: Config, state: State, action: Action):
@@ -62,11 +62,11 @@ def move_fn(rng: Array, cfg: Config, state: State, action: Action):
     return jnp.where(bound | stuff, state.pos, pos)  # compute new position
 
 
-def blast_fn(rng, cfg: Config, state: State, action: Action) -> Array:  # update agents ---
-    dist = la.norm(state.pos[None, ...] - (state.pos + action.pos)[:, None, ...], axis=-1)  # todo make efficient
-    hits = dist <= cfg.rules.reach[cfg.types][None, ...] * action.shoot[..., None]  # mask non attack act
-    damage = (hits * cfg.rules.damage[cfg.types][None, ...]).sum(axis=-1)
-    return state.hp - damage
+def blast_fn(rng: Array, cfg: Config, state: State, action: Action) -> Array:  # update agents ---
+    idx, norm = jk.extras.query_neighbors_pairwise(state.pos + action.pos, state.pos, k=10)
+    aux = lambda d, i, n, b: jnp.zeros(cfg.length, dtype=jnp.int32).at[i].add(d)  # noqa
+    dam = vmap(aux)(cfg.rules.damage[cfg.types] * action.shoot, idx, norm, cfg.rules.blast[cfg.types]).sum(axis=1)
+    return state.hp - dam
 
 
 # @eqx.filter_jit

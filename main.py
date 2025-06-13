@@ -41,15 +41,5 @@ init_key, traj_key = random.split(random.PRNGKey(0), (2, cfg.sims))
 init = vmap(jit(partial(env.init, cfg)))
 traj = vmap(jit(traj_fn))
 
-tic = time.time()
 obs, state = init(init_key)
-state.hp.block_until_ready()
-toc = time.time()
-print(f"init time: {toc - tic:.2f}s")
-
-
-tic = time.time()
 state, (seq, action) = traj(state, init_key)
-state.hp.block_until_ready()
-toc = time.time()
-print(f"traj time: {toc - tic:.2f}s")
