@@ -1,6 +1,6 @@
 [project]
 name = "parabellum"
-version = "0.0.54"
+version = "0.0.61"
 description = "Parabellum environment for parallel warfare simulation"
 authors = [{ name = "Noah Syrkis", email = "desk@syrkis.com" }]
 requires-python = ">=3.11,<3.12"
@@ -27,7 +27,6 @@ dependencies = [
     "distrax>=0.1.5,<0.2",
     "optax>=0.2.4,<0.3",
     "flax>=0.10.4,<0.11",
-    "numpy<2",
     "brax>=0.12.1,<0.13",
     "wandb>=0.19.7,<0.20",
     "flashbax>=0.1.2,<0.2",
@@ -41,12 +40,11 @@ dependencies = [
     "tensorflow>=2.19.0",
     "xprof>=2.20.0",
     "jaxkd>=0.1.0",
+    "numpy>=2",
 ]
 
 [dependency-groups]
-dev = [
-    "esch",
-]
+dev = ["esch"]
 
 [tool.uv]
 

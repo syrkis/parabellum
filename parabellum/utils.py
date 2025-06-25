@@ -1,17 +1,15 @@
 # %% utils.py
+#   parabellum ut
 
 
 # Imports
-from collections import namedtuple
-
-import cartopy.crs as ccrs
 import esch
 import jax.numpy as jnp
 import numpy as np
 from einops import rearrange, repeat
-from jax import debug, tree
+from jax import tree
 from PIL import Image
-from parabellum.env import Env
+from parabellum.types import Config
 
 # Twilight colors (used in neurocope)
 red = "#EA344A"
@@ -19,87 +17,35 @@ blue = "#2B60F6"
 
 
 # %% Plotting
-def gif_fn(env: Env, seq, scale=4):  # animate positions TODO: remove dead units
+def gif_fn(cfg: Config, seq, scale=4):  # animate positions TODO: remove dead units
     pos = seq.pos.astype(int)
     cord = jnp.concat((jnp.arange(pos.shape[0]).repeat(pos.shape[1])[..., None], pos.reshape(-1, 2)), axis=1).T
-    idxs = cord[:, seq.health.flatten().astype(bool) > 0]
-    imgs = 1 - np.array(repeat(env.map, "... -> a ...", a=len(pos)).at[*idxs].set(1))
+    idxs = cord[:, seq.hp.flatten().astype(bool) > 0]
+    imgs = 1 - np.array(repeat(cfg.map, "... -> a ...", a=len(pos)).at[*idxs].set(1))
     imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs * 255]  # type: ignore
-    imgs[0].save("/Users/nobr/desk/s3/btc2sim/sim.gif", save_all=True, append_images=imgs[1:], duration=10, loop=0)
+    imgs[0].save("/Users/nobr/desk/s3/btc2sim/sims.gif", save_all=True, append_images=imgs[1:], duration=10, loop=0)
 
 
-def svg_fn(env: Env, seq, action, fps=2):
-    dwg = esch.init(env.size, env.size)
-    esch.grid_fn(np.array(env.map).T, dwg, shape="square")
-    arr = np.array(rearrange(seq.pos[:, :, ::-1], "time unit pos -> unit pos time"), dtype=np.float32)
+def svg_fn(cfg: Config, seq, action, fname, fps=2, debug=False):
+    # set up and background
+    e = esch.Drawing(h=cfg.size, w=cfg.size, row=1, col=seq.pos.shape[0], debug=debug, pad=10)
+    esch.grid_fn(repeat(np.array(cfg.map, dtype=float), f"... -> {seq.pos.shape[0]} ...") * 0.5, e, shape="square")
 
-    # add unit circles
-    fill = [red if t == -1 else blue for t in env.teams]
-    size = jnp.sqrt(env.types + 1).tolist()
-    esch.anim_sims_fn(arr, dwg, fill=fill, size=size, fps=fps)
+    # loop thorugh teams
+    for i in jnp.unique(cfg.teams):  # c#fg.teams.unique():
+        col = "red" if i == 1 else "blue"
 
-    # add range circles
-    # reach = scene.unit_type_reach[scene.unit_types].tolist()
-    # esch.anim_sims_fn(arr, dwg, size=reach, fill=["none" for _ in range(len(reach))], fps=fps)
+        # loop through types
+        for j in jnp.unique(cfg.types):
+            mask = (cfg.teams == i) & (cfg.types == j)
+            size, blast = float(cfg.rules.r[j]), float(cfg.rules.blast[j])
+            subset = np.array(rearrange(seq.pos, "a b c d -> a c d b"), dtype=float)[:, mask]
+            sub_action = tree.map(lambda x: x[mask], action)
+            esch.sims_fn(e, subset, action=sub_action, fps=fps, col=col, stroke=col, size=size, blast=blast)
 
-    # start_shots =
-    # print(tree.map(jnp.shape, action))
-    time, unit = jnp.where(action.shoot)
-    # debug.breakpoint()
-    start_pos = seq.pos[time, unit][:, ::-1]
-    end_pos = start_pos + action.pos[time, unit][:, ::-1]
-    fill = [red if t == 0 else blue for t in env.teams[unit]]
-    size = jnp.sqrt(env.rules.blast[env.types[unit]]).tolist()
-    esch.anim_shot_fn(start_pos.tolist(), end_pos.tolist(), (time - 1).tolist(), dwg, color=fill, size=size, fps=fps)
+            if debug:
+                sight, reach = float(cfg.rules.sight[j]), float(cfg.rules.reach[j])
+                esch.sims_fn(e, subset, action=None, col="none", fps=fps, size=reach, stroke="grey")
 
-    esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sim.svg")
-
-
-def svgs_fn(env: Env, seq, fps=2):
-    side = jnp.sqrt(seq.pos.shape[0]).astype(int).item()
-    dwg = esch.init(env.size, env.size, side, side, line=True)
-    for i in range(side):
-        for j in range(side):
-            sub_seq = tree.map(lambda x: x[i * side + j], seq)
-            group = dwg.g()
-            group.translate((env.size + 1) * i, (env.size + 1) * j)
-            # arr = np.array(rearrange(sub_seq.pos[:, :, ::-1], "t unit pos -> unit pos t"), dtype=np.float32)
-            arr = np.array(rearrange(sub_seq.pos[:, :, ::-1], "time unit pos -> unit pos time"), dtype=np.float32)
-            esch.grid_fn(np.array(env.map).T, dwg, group, shape="square")
-            esch.anim_sims_fn(arr, dwg, group, fps=fps)
-            dwg.add(group)
-    esch.save(dwg, "/Users/nobr/desk/s3/btc2sim/sims.svg")
-
-
-# Geography stuff
-BBox = namedtuple("BBox", ["north", "south", "east", "west"])  # type: ignore
-
-
-# posinate function
-def to_mercator(bbox: BBox) -> BBox:
-    proj = ccrs.Mercator()
-    west, south = proj.transform_point(bbox.west, bbox.south, ccrs.PlateCarree())
-    east, north = proj.transform_point(bbox.east, bbox.north, ccrs.PlateCarree())
-    return BBox(north=north, south=south, east=east, west=west)
-
-
-def to_platecarree(bbox: BBox) -> BBox:
-    proj = ccrs.PlateCarree()
-    west, south = proj.transform_point(bbox.west, bbox.south, ccrs.Mercator())
-
-    east, north = proj.transform_point(bbox.east, bbox.north, ccrs.Mercator())
-    return BBox(north=north, south=south, east=east, west=west)
-
-
-def obstacle_mask_fn(limit):
-    def aux(i, j):
-        xs = jnp.linspace(0, i + 1, i + j + 1)
-        ys = jnp.linspace(0, j + 1, i + j + 1)
-        cc = jnp.stack((xs, ys)).astype(jnp.int8)
-        mask = jnp.zeros((limit, limit)).at[*cc].set(1)
-        return mask
-
-    x = jnp.repeat(jnp.arange(limit), limit)
-    y = jnp.tile(jnp.arange(limit), limit)
-    mask = jnp.stack([aux(*c) for c in jnp.stack((x, y)).T])  # type: ignore
-    return mask.astype(jnp.int8).reshape(limit, limit, limit, limit)
+    # save
+    e.dwg.saveas(fname)

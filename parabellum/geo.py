@@ -4,7 +4,8 @@
 
 # %% Imports
 from rasterio import features, transform
-from jax import tree
+
+# from jax import tree
 from geopy.geocoders import Nominatim
 from geopy.distance import distance
 import contextily as cx
@@ -18,7 +19,7 @@ from collections import namedtuple
 from typing import Tuple
 import matplotlib.pyplot as plt
 from cachier import cachier
-from jax.scipy.signal import convolve
+# from jax.scipy.signal import convolve
 # from parabellum.types import Terrain
 
 # %% Types
@@ -60,7 +61,7 @@ def get_bbox(place: str, buffer) -> BBox:
     south = distance(meters=buffer).destination(coords, bearing=180).latitude
     east = distance(meters=buffer).destination(coords, bearing=90).longitude
     west = distance(meters=buffer).destination(coords, bearing=270).longitude
-    return BBox(north, south, east, west)
+    return BBox(north, south, east, west)  # type: ignore
 
 
 def basemap_fn(bbox: BBox, gdf) -> Array:
@@ -84,8 +85,8 @@ def geography_fn(place, buffer):
     gdf = gpd.GeoDataFrame(map_data)
     gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north)).to_crs("EPSG:3857")
     raster = raster_fn(gdf, shape=(buffer, buffer))
-    basemap = jnp.rot90(basemap_fn(bbox, gdf), 3)
-    kernel = jnp.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
+    # basemap = jnp.rot90(basemap_fn(bbox, gdf), 3)
+    # kernel = jnp.array([[1, 1, 1], [1, 1, 1], [1, 1, 1]])
     trans = lambda x: jnp.bool(x)  # jnp.rot90(x, 3)  # noqa
     terrain = trans(raster[0])  # Terrain(
     #        building=trans(raster[0]),
@@ -192,3 +193,21 @@ if __name__ == "__main__":
 # %%
 
 """
+
+# BBox = namedtuple("BBox", ["north", "south", "east", "west"])  # type: ignore
+
+
+# def to_mercator(bbox: BBox) -> BBox:
+# proj = ccrs.Mercator()
+# west, south = proj.transform_point(bbox.west, bbox.south, ccrs.PlateCarree())
+# east, north = proj.transform_point(bbox.east, bbox.north, ccrs.PlateCarree())
+# return BBox(north=north, south=south, east=east, west=west)
+#
+#
+# def to_platecarree(bbox: BBox) -> BBox:
+# proj = ccrs.PlateCarree()
+# west, south = proj.transform_point(bbox.west, bbox.south, ccrs.Mercator())
+#
+# east, north = proj.transform_point(bbox.east, bbox.north, ccrs.Mercator())
+# return BBox(north=north, south=south, east=east, west=west)
+#
