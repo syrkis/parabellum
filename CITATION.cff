@@ -1,0 +1,28 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Parabellum
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Noah
+    family-names: Syrkis
+    orcid: 'https://orcid.org/0000-0002-6553-1115'
+  - given-names: Timothée
+    family-names: Anne
+  - given-names: Sebastian
+    family-names: Risi
+identifiers:
+  - type: url
+    value: 'https://github.com/syrkis/parabellum'
+    description: Git Repository
+keywords:
+  - Simulator
+  - Deep Learning
+  - Jax
+  - real-time-strategy
+license: GPL-3.0
+date-released: '2025-06-29'

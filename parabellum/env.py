@@ -40,7 +40,7 @@ def obs_fn(cfg: Config, state: State) -> Obs:  # return info about neighbors ---
     pos = (state.pos[idxs] - state.pos[:, None, ...]).at[:, 0, :].set(state.pos) * mask[..., None]
     args = state.hp, cfg.types, cfg.teams, cfg.reach, cfg.sight, cfg.speed
     hp, type, team, reach, sight, speed = map(lambda x: x[idxs] * mask, args)
-    return Obs(pos=pos, dist=dist, hp=hp, type=type, team=team, reach=reach, sight=sight, speed=speed)
+    return Obs(pos=pos, dist=dist, hp=hp, type=type, team=team, reach=reach, sight=sight, speed=speed, mask=mask)
 
 
 def step_fn(cfg: Config, rng: Array, state: State, action: Action) -> State:
@@ -57,7 +57,7 @@ def move_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, n
 
 
 def blast_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, norm: Array) -> Array:
-    dam = (cfg.dam[cfg.types] * action.shoot)[..., None] * jnp.ones_like(idx)
+    dam = (cfg.dam[cfg.types] * action.cast)[..., None] * jnp.ones_like(idx)
     return state.hp - jnp.zeros(cfg.length, dtype=jnp.int32).at[idx.flatten()].add(dam.flatten())
 
 

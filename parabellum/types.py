@@ -23,11 +23,11 @@ class Kind:
 
 @dataclass
 class Rules:
-    troop = Kind(hp=120, dam=15, speed=2, reach=5, sight=8, blast=1, r=1)
-    armor = Kind(hp=150, dam=12, speed=1, reach=10, sight=16, blast=3, r=2)
-    plane = Kind(hp=80, dam=20, speed=4, reach=20, sight=32, blast=2, r=2)
-    civil = Kind(hp=100, dam=0, speed=3, reach=3, sight=10, blast=1, r=2)
-    medic = Kind(hp=100, dam=-10, speed=3, reach=3, sight=10, blast=1, r=2)
+    troop = Kind(hp=120, dam=15, speed=2, reach=4, sight=4, blast=1, r=1)
+    armor = Kind(hp=150, dam=12, speed=1, reach=8, sight=16, blast=3, r=2)
+    plane = Kind(hp=80, dam=20, speed=4, reach=16, sight=32, blast=2, r=2)
+    civil = Kind(hp=100, dam=0, speed=3, reach=5, sight=10, blast=1, r=2)
+    medic = Kind(hp=100, dam=-10, speed=3, reach=5, sight=10, blast=1, r=2)
 
     def __post_init__(self):
         self.hp = jnp.array((self.troop.hp, self.armor.hp, self.plane.hp, self.civil.hp, self.medic.hp))
@@ -78,23 +78,24 @@ class Obs:
     type: Array
     team: Array
     dist: Array
+    mask: Array
     reach: Array
     sight: Array
     speed: Array
 
     @property
     def ally(self):
-        return self.team == self.team[0]
+        return (self.team == self.team[0]) & self.mask
 
     @property
     def enemy(self):
-        return self.team != self.team[0]
+        return (self.team != self.team[0]) & self.mask
 
 
 @dataclass
 class Action:
-    pos: Float32[Array, "... 2"]  # noqa
-    kind: Int[Array, "..."]  # 0 = invalid, 1 = move, 2 = shoot
+    pos: Array
+    kind: Int[Array, "..."]  # 0 = invalid, 1 = move, 2 = cast
 
     @property
     def invalid(self):
@@ -105,7 +106,7 @@ class Action:
         return self.kind == 1
 
     @property
-    def shoot(self):
+    def cast(self):  # cast bomb, bullet or medicin
         return self.kind == 2
 
 
