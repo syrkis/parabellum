@@ -49,11 +49,11 @@ class Rules:
 
 @dataclass
 class Team:
-    troop: int = 1
-    armor: int = 0
-    plane: int = 0
-    civil: int = 0
-    medic: int = 0
+    troop: int = 10
+    armor: int = 10
+    plane: int = 10
+    civil: int = 10
+    medic: int = 10
 
     def __post_init__(self):
         self.length: int = self.troop + self.armor + self.plane + self.civil + self.medic
