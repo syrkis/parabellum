@@ -1,6 +1,6 @@
 [project]
 name = "parabellum"
-version = "0.0.85"
+version = "0.0.93"
 description = "Parabellum environment for parallel warfare simulation"
 authors = [{ name = "Noah Syrkis", email = "desk@syrkis.com" }]
 requires-python = ">=3.11,<3.12"
@@ -11,22 +11,13 @@ dependencies = [
     "pandas>=2.2.2,<3",
     "contextily>=1.6.0,<2",
     "einops>=0.8.0,<0.9",
-    "jaxtyping>=0.2.33,<0.3",
     "cartopy>=0.23.0,<0.24",
     "cachier>=3.1.2,<4",
-    "optax>=0.2.4,<0.3",
-    "flax>=0.10.4,<0.11",
     "wandb>=0.19.7,<0.20",
-    "flashbax>=0.1.2,<0.2",
-    "navix>=0.7.0,<0.8",
     "omegaconf>=2.3.0,<3",
-    "jax-tqdm>=0.3.1,<0.4",
-    "equinox>=0.12.2",
-    "jaxkd>=0.1.0",
-    "chex>=0.1.89",
     "osmnx>=2.0.4",
-    "jax>=0.6.0",
-
+    "chex>=0.1.89",
+    "jaxkd==0.1.0",
 ]
 
 [dependency-groups]
@@ -35,6 +26,8 @@ dev = ["esch"]
 [tool.uv.sources]
 esch = { path = "../esch" }
 
+[tool.uv]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
@@ -42,14 +35,6 @@ build-backend = "hatchling.build"
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-
-[tool.uv]
-# Require that the package is available for macOS ARM and x86 (Intel).
-required-environments = [
-    "sys_platform == 'darwin' and platform_machine == 'arm64'",
-    "sys_platform == 'darwin' and platform_machine == 'x86_64'",
-]
-
 
 [tool.ruff]
 line-length = 120

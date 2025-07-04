@@ -4,7 +4,7 @@
 
 # imports
 from chex import dataclass
-from jaxtyping import Array, Float32, Int
+from jaxtyping import Array, Bool
 import jax.numpy as jnp
 from parabellum.geo import geography_fn
 from dataclasses import field
@@ -50,10 +50,10 @@ class Rules:
 @dataclass
 class Team:
     troop: int = 10
-    armor: int = 10
-    plane: int = 10
-    civil: int = 10
-    medic: int = 10
+    armor: int = 0
+    plane: int = 0
+    civil: int = 0
+    medic: int = 0
 
     def __post_init__(self):
         self.length: int = self.troop + self.armor + self.plane + self.civil + self.medic
@@ -95,19 +95,11 @@ class Obs:
 @dataclass
 class Action:
     pos: Array
-    kind: Int[Array, "..."]  # 0 = invalid, 1 = move, 2 = cast
-
-    @property
-    def invalid(self):
-        return self.kind == 0
-
-    @property
-    def move(self):
-        return self.kind == 1
+    move: Bool[Array, "..."]  # 0 = invalid, 1 = move, 2 = cast
 
     @property
     def cast(self):  # cast bomb, bullet or medicin
-        return self.kind == 2
+        return ~self.move
 
 
 @dataclass

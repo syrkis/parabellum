@@ -57,7 +57,7 @@ def move_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, n
 
 
 def blast_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, norm: Array) -> Array:
-    dam = (cfg.dam[cfg.types] * action.cast)[..., None] * jnp.ones_like(idx)
+    dam = (cfg.dam[cfg.types] * action.cast)[..., None] * state.hp > 0  # jnp.ones_like(idx)
     return state.hp - jnp.zeros(cfg.length, dtype=jnp.int32).at[idx.flatten()].add(dam.flatten())
 
 

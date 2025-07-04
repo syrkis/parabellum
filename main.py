@@ -20,8 +20,8 @@ from parabellum.types import Action, Config, State
 # %% Functions
 def action_fn(cfg: Config, rng: Array) -> Action:
     pos = random.uniform(rng, (cfg.length, 2), minval=-1, maxval=1) * cfg.rules.reach[cfg.types][..., None]
-    kind = random.randint(rng, (cfg.length,), minval=0, maxval=3)
-    return Action(pos=pos, kind=kind)
+    move = random.randint(rng, (cfg.length,), minval=0, maxval=2) == 1
+    return Action(pos=pos, move=move)
 
 
 def step_fn(state: State, rng: Array) -> Tuple[State, Tuple[State, Action]]:
