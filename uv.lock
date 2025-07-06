@@ -176,15 +176,15 @@ css = [
 
 [[package]]
 name = "cachier"
-version = "3.2.1"
+version = "3.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "portalocker" },
     { name = "watchdog" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/17/46/f53832aec64f6b3bf1daaa535ec89fdf398f4517c60ab969a4e0ea429a5e/cachier-3.2.1.tar.gz", hash = "sha256:e9fa32182801e40ce64ba4c4bed86aa263307c24bc149eb93ed27084b152e167", size = 30399, upload-time = "2025-07-03T19:57:08.432Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d2/2a/7b754eeb276df9d799c93f5ca045b91c13cadf2e98373111a3a8d5439f06/cachier-3.3.0.tar.gz", hash = "sha256:d2ca9d0edd48afdab0f6f006d5dc197654560366598c039ddab4b412dd131adb", size = 31675, upload-time = "2025-07-05T20:22:49.92Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/43/5c/414bc7694c3b215f7a71eb6342e7977abeed839c5ca851886ec5660ce28a/cachier-3.2.1-py3-none-any.whl", hash = "sha256:81aec357e4076aaa97972b5a99d95d967e17313a9e68a5d930049a92770a0a26", size = 27054, upload-time = "2025-07-03T19:57:06.952Z" },
+    { url = "https://files.pythonhosted.org/packages/29/5a/268582067d3746c800ed7f1e4f43b069908ada535a2a83febbda1fe47676/cachier-3.3.0-py3-none-any.whl", hash = "sha256:cff3fc498fa1cd0d480b23a6af359bf4f93b057c157bad3de76e634621e4ed18", size = 28031, upload-time = "2025-07-05T20:22:48.548Z" },
 ]
 
 [[package]]
@@ -263,7 +263,7 @@ wheels = [
 
 [[package]]
 name = "chex"
-version = "0.1.89"
+version = "0.1.88"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "absl-py" },
@@ -273,9 +273,9 @@ dependencies = [
     { name = "toolz" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ca/ac/504a8019f7ef372fc6cc3999ec9e3d0fbb38e6992f55d845d5b928010c11/chex-0.1.89.tar.gz", hash = "sha256:78f856e6a0a8459edfcbb402c2c044d2b8102eac4b633838cbdfdcdb09c6c8e0", size = 90676, upload-time = "2025-02-25T15:43:30.23Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/7a/3b8ca1c693a5ab0a03e48837c6da8659a0dd9f742248d69c4d8beae13d27/chex-0.1.88.tar.gz", hash = "sha256:565de897b1373232cdfca5e699f50fa49403d2c7d23f6c5a75a97ef713d2fe36", size = 90366, upload-time = "2024-12-11T10:34:03.899Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5e/6c/309972937d931069816dc8b28193a650485bc35cca92c04c8c15c4bd181e/chex-0.1.89-py3-none-any.whl", hash = "sha256:145241c27d8944adb634fb7d472a460e1c1b643f561507d4031ad5156ef82dfa", size = 99908, upload-time = "2025-02-25T15:43:27.316Z" },
+    { url = "https://files.pythonhosted.org/packages/58/a0/e4bebe76bdd0a68077030f1b5e48b545597473ae1b773c84150311152efc/chex-0.1.88-py3-none-any.whl", hash = "sha256:234b61a5baa8132802e4b9c5657167d6c8a911d90a59a0bec47d537567e41b75", size = 99684, upload-time = "2024-12-11T10:34:02.259Z" },
 ]
 
 [[package]]
@@ -463,15 +463,13 @@ wheels = [
 
 [[package]]
 name = "esch"
-version = "0.0.78"
+version = "0.0.79"
 source = { directory = "../esch" }
 dependencies = [
-    { name = "chex" },
     { name = "darkdetect" },
     { name = "einops" },
     { name = "ipython" },
     { name = "ipywidgets" },
-    { name = "jax" },
     { name = "jaxtyping" },
     { name = "jupyterlab" },
     { name = "matplotlib" },
@@ -484,12 +482,10 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [
-    { name = "chex", specifier = ">=0.1.87,<0.2" },
     { name = "darkdetect", specifier = ">=0.8.0,<0.9" },
     { name = "einops", specifier = ">=0.8.0,<0.9" },
     { name = "ipython", specifier = ">=8.29.0,<9" },
     { name = "ipywidgets", specifier = ">=8.1.5,<9" },
-    { name = "jax", specifier = ">=0.6.0,<0.7" },
     { name = "jaxtyping", specifier = ">=0.2.36,<0.3" },
     { name = "jupyterlab", specifier = ">=4.3.3,<5" },
     { name = "matplotlib", specifier = ">=3.9.2,<4" },
@@ -1305,7 +1301,7 @@ wheels = [
 
 [[package]]
 name = "osmnx"
-version = "2.0.4"
+version = "2.0.5"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "geopandas" },
@@ -1315,9 +1311,9 @@ dependencies = [
     { name = "requests" },
     { name = "shapely" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c4/95/ea857a3898990f10f6b3b3b8ef1aad6e00d0638ee2791b09227a9f0a0767/osmnx-2.0.4.tar.gz", hash = "sha256:90ce2f82ecfe5b0db013b6fc35789efd09491a5493680005b02710ea0b6aaa9b", size = 87091, upload-time = "2025-06-11T05:13:36.065Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ef/a3/61367c065695166b0b28b7d2032129dd16d6202eaf14343f4c0caca98279/osmnx-2.0.5.tar.gz", hash = "sha256:b58663d210644c3f660fdffa767ff298a113cd7ad15f807c41af54fbca40fca9", size = 87596, upload-time = "2025-07-05T18:28:37.135Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/40/6d/55320ebac861e45500312dad82ad16014995b33d1f95ed1204045fce3dc1/osmnx-2.0.4-py3-none-any.whl", hash = "sha256:edf6b7514b8c554ab85b20e8c914716933b553d153a5d2fd284330b6974b72f5", size = 100474, upload-time = "2025-06-11T05:13:34.234Z" },
+    { url = "https://files.pythonhosted.org/packages/ba/4b/de6749d718214bfc43016184935a21d17d0357ccf320cf8303b31717fade/osmnx-2.0.5-py3-none-any.whl", hash = "sha256:7a58237b904a8ad13a11cf57b758c530d3f8734020142a2d0149f39fc4ba88bc", size = 101256, upload-time = "2025-07-05T18:28:35.359Z" },
 ]
 
 [[package]]
@@ -1370,7 +1366,7 @@ wheels = [
 
 [[package]]
 name = "parabellum"
-version = "0.0.91"
+version = "0.0.97"
 source = { editable = "." }
 dependencies = [
     { name = "cachier" },
@@ -1396,7 +1392,7 @@ dev = [
 requires-dist = [
     { name = "cachier", specifier = ">=3.1.2,<4" },
     { name = "cartopy", specifier = ">=0.23.0,<0.24" },
-    { name = "chex", specifier = ">=0.1.89" },
+    { name = "chex", specifier = ">=0.1.82,<0.1.89" },
     { name = "contextily", specifier = ">=1.6.0,<2" },
     { name = "einops", specifier = ">=0.8.0,<0.9" },
     { name = "geopy", specifier = ">=2.4.1,<3" },
