@@ -108,7 +108,7 @@ class Config:  # Remove frozen=True for now
     place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
     force: float = 0.5
     sims: int = 2
-    size: int = 64
+    size: int = 256
     knn: int = 2
     blu: Team = field(default_factory=lambda: Team())
     red: Team = field(default_factory=lambda: Team())
