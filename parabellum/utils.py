@@ -29,11 +29,11 @@ def gif_fn(cfg: Config, seq, scale=4):  # animate positions TODO: remove dead un
 def svg_fn(cfg: Config, seq, action, fname, targets=None, fps=2, debug=False):
     # set up and background
     e = esch.Drawing(h=cfg.size, w=cfg.size, row=1, col=seq.pos.shape[0], debug=debug, pad=10)
-    esch.grid_fn(repeat(np.array(cfg.map, dtype=float), f"... -> {seq.pos.shape[0]} ...") * 0.5, e, shape="square")
+    esch.grid_fn(e, repeat(np.array(cfg.map, dtype=float), f"... -> {seq.pos.shape[0]} ...") * 0.8, shape="square")
 
     # loop thorugh teams
     for i in jnp.unique(cfg.teams):  # c#fg.teams.unique():
-        col = "red" if i == 1 else "blue"
+        col = "black" if i == 1 else "none"
 
         # loop through types
         for j in jnp.unique(cfg.types):
@@ -43,7 +43,7 @@ def svg_fn(cfg: Config, seq, action, fname, targets=None, fps=2, debug=False):
             # print(tree.map(jnp.shape, action), mask.shape)
             sub_action = tree.map(lambda x: x[:, :, mask], action)
             # print(tree.map(jnp.shape, sub_action))
-            esch.sims_fn(e, subset, action=sub_action, fps=fps, col=col, stroke=col, size=size, blast=blast)
+            esch.sims_fn(e, subset, action=sub_action, fps=fps, col=col, stroke="black", size=size, blast=blast)
 
             if debug:
                 sight, reach = float(cfg.rules.sight[j]), float(cfg.rules.reach[j])

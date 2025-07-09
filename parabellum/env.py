@@ -31,7 +31,7 @@ def init_fn(cfg: Config, rng: Array) -> State:
     flat = random.choice(rng, jnp.arange(prob.size), shape=(cfg.length,), p=prob, replace=True)
     idxs = (flat // len(cfg.map), flat % len(cfg.map))
     pos = jnp.float32(jnp.column_stack(idxs))
-    return State(pos=pos, hp=cfg.hp[cfg.types])
+    return State(pos=pos, hp=jnp.float32(cfg.hp[cfg.types]))
 
 
 def obs_fn(cfg: Config, state: State) -> Obs:  # return info about neighbors ---
@@ -58,11 +58,11 @@ def move_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, n
 
 def blast_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, norm: Array) -> Array:
     dam = (cfg.dam[cfg.types] * action.cast)[..., None] * jnp.ones_like(idx)
-    return state.hp - jnp.zeros(cfg.length, dtype=jnp.int32).at[idx.flatten()].add(dam.flatten())
+    return jnp.float32(state.hp - jnp.zeros(cfg.types.size).at[idx.flatten()].add(dam.flatten()))
 
 
 def push_fn(cfg: Config, rng: Array, idx: Array, norm: Array, pos: Array) -> Array:
-    return pos + random.normal(rng, pos.shape) * 0.1
+    return pos + random.normal(rng, pos.shape)
     # params need to be tweaked, and matched with unit size
     pos_diff = pos[:, None, :] - pos[idx]  # direction away from neighbors
     mask = (norm < cfg.r[cfg.types][..., None]) & (norm > 0)

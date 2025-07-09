@@ -49,7 +49,7 @@ class Rules:
 
 @dataclass
 class Team:
-    troop: int = 10
+    troop: int = 3
     armor: int = 0
     plane: int = 0
     civil: int = 0
@@ -108,7 +108,7 @@ class Config:  # Remove frozen=True for now
     place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
     force: float = 0.5
     sims: int = 2
-    size: int = 256
+    size: int = 64
     knn: int = 2
     blu: Team = field(default_factory=lambda: Team())
     red: Team = field(default_factory=lambda: Team())
