@@ -8,7 +8,6 @@ from rasterio import features, transform
 # from jax import tree
 from geopy.geocoders import Nominatim
 from geopy.distance import distance
-import contextily as cx
 import jax.numpy as jnp
 import cartopy.crs as ccrs
 from jaxtyping import Array
@@ -19,32 +18,15 @@ from collections import namedtuple
 from typing import Tuple
 import matplotlib.pyplot as plt
 from cachier import cachier
-# from jax.scipy.signal import convolve
-# from parabellum.types import Terrain
 
 # %% Types
 Coords = Tuple[float, float]
 BBox = namedtuple("BBox", ["north", "south", "east", "west"])  # type: ignore
 
-# %% Constants
-provider = cx.providers.Stadia.StamenTerrain(  # type: ignore
-    api_key="86d0d32b-d2fe-49af-8db8-f7751f58e83f"
-)
-provider["url"] = provider["url"] + "?api_key={api_key}"
-tags = {
-    "building": True,
-    "water": True,
-    "highway": True,
-    "landuse": [
-        "grass",
-        "forest",
-        "flowerbed",
-        "greenfield",
-        "village_green",
-        "recreation_ground",
-    ],
-    "leisure": "garden",
-}  #  "road": True}
+# # %% Constants
+# provider = cx.providers.OpenStreetMap.Mapnik()
+# # provider["url"] = provider["url"]
+tags = {"building": True,"water": True,"highway": True, "road": True}
 
 
 # %% Coordinate function
@@ -67,7 +49,7 @@ def get_bbox(place: str, buffer) -> BBox:
 def basemap_fn(bbox: BBox, gdf) -> Array:
     fig, ax = plt.subplots(figsize=(20, 20), subplot_kw={"projection": ccrs.Mercator()})
     gdf.plot(ax=ax, color="black", alpha=0, edgecolor="black")  # type: ignore
-    cx.add_basemap(ax, crs=gdf.crs, source=provider, zoom="auto")  # type: ignore
+    # cx.add_basemap(ax, crs=gdf.crs, source=provider, zoom="auto")  # type: ignore
     bbox = gdf.total_bounds
     ax.set_extent([bbox[0], bbox[2], bbox[1], bbox[3]], crs=ccrs.Mercator())  # type: ignore
     plt.axis("off")

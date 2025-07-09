@@ -5,12 +5,8 @@
 # Imports ###################################################################
 from functools import partial
 from typing import Tuple
-import esch
 
-from einops import repeat, rearrange
-import numpy as np
-from jax import jit, lax, random, tree, vmap
-from jax import numpy as jnp
+from jax import jit, lax, random, vmap
 from jaxtyping import Array
 
 import parabellum as pb

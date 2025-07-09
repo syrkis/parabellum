@@ -105,10 +105,10 @@ class Action:
 @dataclass
 class Config:  # Remove frozen=True for now
     steps: int = 123
-    place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
+    place: str = "The Colosseum, Rome, Italy"
     force: float = 0.5
     sims: int = 2
-    size: int = 64
+    size: int = 100
     knn: int = 2
     blu: Team = field(default_factory=lambda: Team())
     red: Team = field(default_factory=lambda: Team())
