@@ -14,13 +14,14 @@ dependencies = [
     "cachier>=3.1.2,<4",
     "wandb>=0.19.7,<0.20",
     "omegaconf>=2.3.0,<3",
-    "osmnx>=2.0.4",
     "jaxkd==0.1.0",
     "chex>=0.1.82,<0.1.89",
     "jax>=0.6.2; sys_platform != 'linux'",
     "jax[cuda12]>=0.6.2; sys_platform == 'linux'",
     "jaxtyping>=0.3.2",
     "rasterio>=1.4.3",
+    "osmpythontools>=0.3.6",
+    "osmnx>=2.0.5",
 ]
 
 [dependency-groups]
