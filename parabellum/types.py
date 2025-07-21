@@ -105,7 +105,7 @@ class Action:
 @dataclass
 class Config:  # Remove frozen=True for now
     steps: int = 123
-    place: str = "The Colosseum, Rome, Italy"
+    place: str = "Palazzo della Civiltà Italiana, Rome, Italy"
     force: float = 0.5
     sims: int = 2
     size: int = 100
@@ -118,7 +118,12 @@ class Config:  # Remove frozen=True for now
         # Pre-compute everything once
         self.types: Array = jnp.concat((self.blu.types, self.red.types))
         self.teams: Array = jnp.repeat(jnp.arange(2), jnp.array((self.blu.length, self.red.length)))
-        self.map: Array = geography_fn(self.place, self.size)  # Computed once here
+        # self.map: Array = geography_fn(self.place, self.size)  # Computed once here
+        self.map: Array = (
+            jnp.bool(jnp.zeros((self.size, self.size)))
+            .at[self.size // 6 : self.size // 6 * 3, self.size // 6 : self.size // 6 * 3]
+            .set(True)
+        )
         self.hp: Array = self.rules.hp
         self.dam: Array = self.rules.dam
         self.r: Array = self.rules.r

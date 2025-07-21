@@ -45,7 +45,7 @@ def get_bbox(place: str, buffer) -> BBox:
 @cachier()
 def geography_fn(place, buffer):
     bbox = get_bbox(place, buffer)
-    map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
+    map_data = ox.features_from_bbox(bbox=bbox, tags=tags)  # type: ignore
     gdf = gpd.GeoDataFrame(map_data)
     gdf = gdf.clip(box(bbox.west, bbox.south, bbox.east, bbox.north)).to_crs("EPSG:3857")
     raster = raster_fn(gdf, shape=(buffer, buffer))
@@ -73,7 +73,7 @@ def feature_fn(t, feature, gdf, shape):
 if __name__ == "__main__":
     place = "Copenhagen, Denmark"
     bbox = get_bbox(place, 32)
-    map_data = ox.features_from_bbox(bbox=bbox, tags=tags)
+    map_data = ox.features_from_bbox(bbox=bbox, tags=tags)  # type: ignore
     map_data.plot()
 
 
