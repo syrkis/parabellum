@@ -11,60 +11,94 @@ import jaxkd as jk
 from jax import random
 from jaxtyping import Array
 
-from parabellum.types import Action, Config, Obs, State
+from parabellum.types import Action, Obs, State
 
 
 # %% Dataclass
 class Env:
-    def init(self, cfg: Config, rng: Array) -> Tuple[Obs, State]:
-        state = init_fn(cfg, rng)  # without jit this takes forever
-        return obs_fn(cfg, state), state
+    def __init__(self, cfg):
+        self.cfg = cfg
 
-    def step(self, cfg: Config, rng: Array, state: State, action: Action) -> Tuple[Obs, State]:
-        state = step_fn(cfg, rng, state, action)
-        return obs_fn(cfg, state), state
+        # length n units
+        self.types = jnp.concat([jnp.repeat(jnp.arange(5), jnp.array(list(x.values()))) for x in cfg.teams.values()])
+        self.teams = jnp.repeat(jnp.arange(2), jnp.array((sum(cfg.teams.blu.values()), sum(cfg.teams.red.values()))))
+
+        # length n types
+        self.damage = jnp.array(list(map(lambda x: getattr(x, "damage"), cfg.rules.values())))
+        self.radius = jnp.array(list(map(lambda x: getattr(x, "radius"), cfg.rules.values())))
+        self.health = jnp.array(list(map(lambda x: getattr(x, "health"), cfg.rules.values())))
+        self.speed = jnp.array(list(map(lambda x: getattr(x, "speed"), cfg.rules.values())))
+        self.reach = jnp.array(list(map(lambda x: getattr(x, "reach"), cfg.rules.values())))
+        self.sight = jnp.array(list(map(lambda x: getattr(x, "sight"), cfg.rules.values())))
+        self.blast = jnp.array(list(map(lambda x: getattr(x, "blast"), cfg.rules.values())))
+
+        # game map
+        self.map: Array = (
+            jnp.bool(jnp.zeros((cfg.size, cfg.size)))
+            .at[cfg.size // 6 : cfg.size // 6 * 3, cfg.size // 6 : cfg.size // 6 * 3]
+            .set(True)
+        )
+
+    def init(self, rng: Array) -> Tuple[Obs, State]:
+        state = init_fn(self, rng)  # without jit this takes forever
+        return obs_fn(self, state), state
+
+    def step(self, rng: Array, state: State, action: Action) -> Tuple[Obs, State]:
+        state = step_fn(self, rng, state, action)
+        return obs_fn(self, state), state
 
 
 # %% Functions
-def init_fn(cfg: Config, rng: Array) -> State:
-    prob = jnp.ones((cfg.size, cfg.size)).at[cfg.map].set(0).flatten()  # Set
-    flat = random.choice(rng, jnp.arange(prob.size), shape=(cfg.length,), p=prob, replace=True)
-    idxs = (flat // len(cfg.map), flat % len(cfg.map))
+def init_fn(env: Env, rng: Array) -> State:
+    prob = jnp.ones((env.cfg.size, env.cfg.size)).at[env.map].set(0).flatten()  # Set
+    flat = random.choice(rng, jnp.arange(prob.size), shape=(env.types.size,), p=prob, replace=True)
+    idxs = (flat // len(env.map), flat % len(env.map))
     pos = jnp.float32(jnp.column_stack(idxs))
-    return State(pos=pos, hp=jnp.float32(cfg.hp[cfg.types]))
+    return State(pos=pos, hp=jnp.float32(env.health[env.types]))
 
 
-def obs_fn(cfg: Config, state: State) -> Obs:  # return info about neighbors ---
-    idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=cfg.knn)
-    mask = dist < cfg.sight[cfg.types[idxs][:, 0]][..., None]  # | (state.hp[idxs] > 0)
-    pos = (state.pos[idxs] - state.pos[:, None, ...]).at[:, 0, :].set(state.pos) * mask[..., None]
-    args = state.hp, cfg.types, cfg.teams, cfg.reach, cfg.sight, cfg.speed
+def obs_fn(env: Env, state: State) -> Obs:  # return info about neighbors ---
+    idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=env.cfg.knn)
+    mask: Array = dist < env.sight[env.types[idxs][:, 0]][..., None]  # | (state.hp[idxs] > 0)
+    pos: Array = (state.pos[idxs] - state.pos[:, None, ...]).at[:, 0, :].set(state.pos) * mask[..., None]
+    args = state.hp, env.types, env.teams, env.reach, env.sight, env.speed
     hp, type, team, reach, sight, speed = map(lambda x: x[idxs] * mask, args)
-    return Obs(pos=pos, dist=dist, hp=hp, type=type, team=team, reach=reach, sight=sight, speed=speed, mask=mask)
+    return Obs(
+        pos=pos,
+        dist=dist,
+        hp=hp,
+        type=type,
+        team=team,
+        reach=reach,
+        sight=sight,
+        speed=speed,
+        mask=mask,
+        idx=idxs * mask,  # TODO: note that units not in sight has idx 0 (but so does the first unit)
+    )
 
 
-def step_fn(cfg: Config, rng: Array, state: State, action: Action) -> State:
+def step_fn(env: Env, rng: Array, state: State, action: Action) -> State:
     idx, norm = jk.extras.query_neighbors_pairwise(state.pos + action.pos, state.pos, k=2)
-    args = rng, cfg, state, action, idx, norm
-    return State(pos=partial(push_fn, cfg, rng, idx, norm)(move_fn(*args)), hp=blast_fn(*args))  # type: ignore
+    args = rng, env, state, action, idx, norm
+    return State(pos=partial(push_fn, env, rng, idx, norm)(move_fn(*args)), hp=blast_fn(*args))  # type: ignore
 
 
-def move_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, norm: Array) -> Array:
-    speed = cfg.speed[cfg.types][..., None]  # max speed of a unit (step size, really)
+def move_fn(rng: Array, env: Env, state: State, action: Action, idx: Array, norm: Array) -> Array:
+    speed = env.speed[env.types][..., None]  # max speed of a unit (step size, really)
     pos = state.pos + action.pos.clip(-speed, speed) * action.move[..., None]  # new poss
-    mask = ((pos < 0).any(axis=-1) | ((pos >= cfg.size).any(axis=-1)) | (cfg.map[*jnp.int32(pos).T] > 0))[..., None]
+    mask = ((pos < 0).any(axis=-1) | ((pos >= env.cfg.size).any(axis=-1)) | (env.map[*jnp.int32(pos).T] > 0))[..., None]
     return jnp.where(mask, state.pos, pos)  # compute new position
 
 
-def blast_fn(rng: Array, cfg: Config, state: State, action: Action, idx: Array, norm: Array) -> Array:
-    dam = (cfg.dam[cfg.types] * action.cast)[..., None] * jnp.ones_like(idx)
-    return jnp.float32(state.hp - jnp.zeros(cfg.types.size).at[idx.flatten()].add(dam.flatten()))
+def blast_fn(rng: Array, env: Env, state: State, action: Action, idx: Array, norm: Array) -> Array:
+    dam = (env.damage[env.types] * action.cast)[..., None] * jnp.ones_like(idx)
+    return jnp.float32(state.hp - jnp.zeros(env.types.size).at[idx.flatten()].add(dam.flatten()))
 
 
-def push_fn(cfg: Config, rng: Array, idx: Array, norm: Array, pos: Array) -> Array:
+def push_fn(env: Env, rng: Array, idx: Array, norm: Array, pos: Array) -> Array:
     return pos + random.normal(rng, pos.shape)
     # params need to be tweaked, and matched with unit size
     pos_diff = pos[:, None, :] - pos[idx]  # direction away from neighbors
-    mask = (norm < cfg.r[cfg.types][..., None]) & (norm > 0)
-    pos = pos + jnp.where(mask[..., None], pos_diff * cfg.force / (norm[..., None] + 1e-6), 0.0).sum(axis=1)
+    mask = (norm < env.radius[env.types][..., None]) & (norm > 0)
+    pos = pos + jnp.where(mask[..., None], pos_diff * env.cfg.force / (norm[..., None] + 1e-6), 0.0).sum(axis=1)
     return pos + random.normal(rng, pos.shape) * 0.1
