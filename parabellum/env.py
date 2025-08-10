@@ -77,6 +77,7 @@ def world_fn(cfg):
     # Rasterize buildings into a binary grid
     raster = features.rasterize([(geom, 1) for geom in data.geometry if geom], (cfg.size, cfg.size), transform=t)
 
+    # put map into jax
     return jnp.array(raster)
 
 
