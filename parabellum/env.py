@@ -8,16 +8,26 @@ from typing import Tuple
 
 import jax.numpy as jnp
 import jaxkd as jk
+import geopandas as gpd
+import matplotlib.pyplot as plt
+import osmnx as ox
+from geopy.geocoders import Nominatim
 from jax import random
 from jaxtyping import Array
+from omegaconf import DictConfig
+from rasterio import features, transform
+from shapely.geometry import box, Point
 
 from parabellum.types import Action, Obs, State
 
 
 # %% Dataclass
 class Env:
-    def __init__(self, cfg):
+    def __init__(self, cfg: DictConfig):
+        # config
         self.cfg = cfg
+        plt.imshow(world_fn(cfg))
+        plt.show()
 
         # length n units
         self.types = jnp.concat([jnp.repeat(jnp.arange(5), jnp.array(list(x.values()))) for x in cfg.teams.values()])
@@ -46,6 +56,35 @@ class Env:
     def step(self, rng: Array, state: State, action: Action) -> Tuple[Obs, State]:
         state = step_fn(self, rng, state, action)
         return obs_fn(self, state), state
+
+
+def world_fn(cfg):
+    # Get location coordinates
+    location = Nominatim(user_agent="parabellum").geocode(cfg.place)
+
+    # Get building footprints from OSM within a radius
+    data = ox.features_from_point((location.latitude, location.longitude), tags={"building": True}, dist=cfg.size // 2)
+
+    # Project to a metric CRS to work in meters
+    data = data.to_crs(data.estimate_utm_crs())
+
+    # Create a point from the location and project it
+    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326").to_crs(data.crs).iloc[0]
+
+    # Create exact square bounding box centered on location
+    bbox = box(center.x - cfg.size // 2, center.y - cfg.size // 2, center.x + cfg.size // 2, center.y + cfg.size // 2)
+
+    # Clip buildings to exact bounding box
+    data["geometry"] = data.geometry.clip(bbox)
+
+    # Filter out empty/invalid geometries
+    data = data[~data.geometry.is_empty & data.geometry.is_valid & data.geometry.notna()]
+
+    # Transformation stuff - now using the exact bbox bounds
+    t = transform.from_bounds(*bbox.bounds, cfg.size, cfg.size)  # type: ignore
+
+    # Rasterize buildings into a binary grid
+    return features.rasterize([(geom, 1) for geom in data.geometry if geom], (cfg.size, cfg.size), transform=t)
 
 
 # %% Functions

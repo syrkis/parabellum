@@ -32,20 +32,6 @@ def traj_fn(env, state, rng) -> Tuple[State, Tuple[State, Action]]:
     return lax.scan(partial(step_fn, env), state, rngs)
 
 
-# %% Main
-
-# pb.utils.svg_fn(cfg, seq, action, "/Users/nobr/desk/s3/parabellum/sims.svg", debug=True)
-# %% Anim
-# for i in range(seq.pos.shape[0]):  # sims
-# for j in range(seq.pos.shape[2]):  # units
-# shots = [(kdx, coord) for kdx, coord in enumerate(action.pos[i, :, j]) if action.shoot[i, kdx, j]]
-# print(shots)
-# print(tree.map(jnp.shape, action))
-# print(tree.map(jnp.shape, seq))
-# pb.utils.svg_fn(cfg, seq.pos, action)
-# pb.utils.gif_fn(cfg, seq)
-
-
 @mlxp.launch(config_path="./conf")
 def main(ctx: mlxp.Context) -> None:
     env = pb.Env(ctx.config)
