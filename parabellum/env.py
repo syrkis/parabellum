@@ -9,7 +9,6 @@ from typing import Tuple
 import jax.numpy as jnp
 import jaxkd as jk
 import geopandas as gpd
-import matplotlib.pyplot as plt
 import osmnx as ox
 from geopy.geocoders import Nominatim
 from jax import random
@@ -26,8 +25,7 @@ class Env:
     def __init__(self, cfg: DictConfig):
         # config
         self.cfg = cfg
-        plt.imshow(world_fn(cfg))
-        plt.show()
+        self.map = world_fn(cfg)
 
         # length n units
         self.types = jnp.concat([jnp.repeat(jnp.arange(5), jnp.array(list(x.values()))) for x in cfg.teams.values()])
@@ -41,13 +39,6 @@ class Env:
         self.reach = jnp.array(list(map(lambda x: getattr(x, "reach"), cfg.rules.values())))
         self.sight = jnp.array(list(map(lambda x: getattr(x, "sight"), cfg.rules.values())))
         self.blast = jnp.array(list(map(lambda x: getattr(x, "blast"), cfg.rules.values())))
-
-        # game map
-        self.map: Array = (
-            jnp.bool(jnp.zeros((cfg.size, cfg.size)))
-            .at[cfg.size // 6 : cfg.size // 6 * 3, cfg.size // 6 : cfg.size // 6 * 3]
-            .set(True)
-        )
 
     def init(self, rng: Array) -> Tuple[Obs, State]:
         state = init_fn(self, rng)  # without jit this takes forever
@@ -84,7 +75,9 @@ def world_fn(cfg):
     t = transform.from_bounds(*bbox.bounds, cfg.size, cfg.size)  # type: ignore
 
     # Rasterize buildings into a binary grid
-    return features.rasterize([(geom, 1) for geom in data.geometry if geom], (cfg.size, cfg.size), transform=t)
+    raster = features.rasterize([(geom, 1) for geom in data.geometry if geom], (cfg.size, cfg.size), transform=t)
+
+    return jnp.array(raster)
 
 
 # %% Functions
