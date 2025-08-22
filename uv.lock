@@ -937,7 +937,7 @@ wheels = [
 
 [[package]]
 name = "parabellum"
-version = "0.0.116"
+version = "0.0.117"
 source = { editable = "." }
 dependencies = [
     { name = "cachier" },

@@ -5,7 +5,7 @@
 # Imports
 from functools import partial
 from typing import Tuple
-
+from cachier import cachier
 import jax.numpy as jnp
 import jaxkd as jk
 import geopandas as gpd
@@ -26,6 +26,7 @@ class Env:
         # config
         self.cfg = cfg
         self.map = world_fn(cfg)
+        self.num = sum([sum(x.values()) for x in cfg.teams.values()])
 
         # length n units
         self.types = jnp.concat([jnp.repeat(jnp.arange(5), jnp.array(list(x.values()))) for x in cfg.teams.values()])
@@ -49,6 +50,7 @@ class Env:
         return obs_fn(self, state), state
 
 
+@cachier()
 def world_fn(cfg):
     # Get location coordinates
     location = Nominatim(user_agent="parabellum").geocode(cfg.place)
@@ -60,7 +62,7 @@ def world_fn(cfg):
     data = data.to_crs(data.estimate_utm_crs())
 
     # Create a point from the location and project it
-    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326").to_crs(data.crs).iloc[0]
+    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326").to_crs(data.crs).iloc[0] # type: ignore
 
     # Create exact square bounding box centered on location
     bbox = box(center.x - cfg.size // 2, center.y - cfg.size // 2, center.x + cfg.size // 2, center.y + cfg.size // 2)

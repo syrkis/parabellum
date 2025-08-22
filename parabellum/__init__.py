@@ -1,4 +1,4 @@
-from . import env, geo, types, utils
+from . import env, types, utils
 from .env import Env
 
-__all__ = ["geo", "env", "types", "utils", "Env"]
+__all__ = ["env", "types", "utils", "Env"]
