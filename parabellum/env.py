@@ -19,6 +19,7 @@ from omegaconf import DictConfig
 from rasterio import features, transform
 from shapely.geometry import box, Point
 import matplotlib.pyplot as plt
+import contextily as ctx
 
 from parabellum.types import Action, Obs, State
 
@@ -28,7 +29,7 @@ class Env:
     def __init__(self, cfg: DictConfig):
         # config
         self.cfg = cfg
-        self.map = world_fn(cfg)
+        self.map, self.image = world_fn(cfg)
         self.num = sum([sum(x.values()) for x in cfg.teams.values()])
         self.see = int((self.num / jnp.log(self.num)).item())
 
@@ -54,7 +55,7 @@ class Env:
         return obs_fn(self, state), state
 
 
-@cachier()
+# @cachier()
 def world_fn(cfg):
     # Get location coordinates
     location = Nominatim(user_agent="parabellum").geocode(cfg.place)
@@ -83,8 +84,54 @@ def world_fn(cfg):
     # Rasterize buildings into a binary grid
     raster = features.rasterize([(geom, 1) for geom in data.geometry if geom], (cfg.size, cfg.size), transform=t)
 
+    # Get satellite image of raster
+    image = satelite_fn(location, cfg.size)
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
+    axes[0].imshow(image)
+    axes[1].imshow(raster)
+    plt.show()
+    exit()
+
     # put map into jax
-    return jnp.array(raster)
+    return jnp.array(raster), image
+
+
+def satelite_fn(location, size):
+    # Create a point from the location
+    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326")
+
+    # Project to UTM for metric calculations
+    utm_crs = center.estimate_utm_crs()
+    center_utm = center.to_crs(utm_crs).iloc[0]
+
+    # Create exact square bounding box centered on location (same as in world_fn)
+    bbox = box(center_utm.x - size // 2, center_utm.y - size // 2, center_utm.x + size // 2, center_utm.y + size // 2)
+
+    # Convert back to lat/lon for contextily
+    bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs=utm_crs)
+    bbox_latlon = bbox_gdf.to_crs("EPSG:4326")
+    bounds = bbox_latlon.bounds.iloc[0]  # west, south, east, north
+
+    # Get satellite image from contextily
+    img, extent = ctx.bounds2img(
+        bounds.minx, bounds.miny, bounds.maxx, bounds.maxy, zoom="auto", source=ctx.providers.Esri.WorldImagery, ll=True
+    )  # ll=True means bounds are in lat/lon
+
+    # Resize the image to exact dimensions (size x size)
+    from PIL import Image
+
+    # Convert numpy array to PIL Image
+    if len(img.shape) == 3:
+        pil_img = Image.fromarray(img)
+    else:
+        pil_img = Image.fromarray(img, mode="L")
+
+    # Resize to exact dimensions
+    resized_img = pil_img.resize((size, size), Image.Resampling.LANCZOS)
+
+    # Convert back to numpy array
+    return np.array(resized_img)
 
 
 # %% Functions
@@ -117,14 +164,21 @@ def obs_fn(env: Env, state: State) -> Obs:  # return info about neighbors ---
 
 def step_fn(env: Env, rng: Array, state: State, action: Action) -> State:
     idx, norm = jk.extras.query_neighbors_pairwise(state.pos + action.pos, state.pos, k=2)  # neast neighs?
-    args = rng, env, state, action, idx, norm
-    return State(pos=partial(push_fn, env, rng, idx, norm)(move_fn(*args)), hp=blast_fn(*args))  # type: ignore
+    hp = blast_fn(rng, env, state, action, idx, norm)
+    pos = move_fn(rng, env, state, action, idx, norm)
+    return State(pos=pos, hp=hp)  # type: ignore
 
 
 def move_fn(rng: Array, env: Env, state: State, action: Action, idx: Array, norm: Array) -> Array:
-    speed = (env.speed[env.types] * (state.hp > 0))[..., None]  # max speed of a unit (step size, really)
-    pos = state.pos + action.pos.clip(-speed, speed) * action.move[..., None]  # new poss
-    mask = ((pos < 0).any(axis=-1) | ((pos >= env.cfg.size).any(axis=-1)) | (env.map[*jnp.int32(pos).T] > 0))[..., None]
+    speed = env.speed[env.types][..., None]  # max speed of a unit (step size, really)
+    pos = (
+        state.pos
+        + action.pos.clip(-speed, speed) * action.move[..., None]
+        + random.normal(rng, state.pos.shape) * env.cfg.noise
+    )
+    mask = ((pos < 0).any(axis=-1) | ((pos >= env.cfg.size).any(axis=-1)) | (env.map[*jnp.int32(pos).T] > 0) | (state.hp <= 0))[
+        ..., None
+    ]
     return jnp.where(mask, state.pos, pos)  # compute new position
 
 
@@ -139,8 +193,4 @@ def push_fn(env: Env, rng: Array, idx: Array, norm: Array, pos: Array) -> Array:
     # pos_diff = pos[:, None, :] - pos[idx]  # direction away from neighbors
     # mask = (norm < env.radius[env.types][..., None]) & (norm > 0)
     # pos = pos + jnp.where(mask[..., None], pos_diff * env.cfg.force / (norm[..., None] + 1e-6), 0.0).sum(axis=1)
-
-    # add random noise and check it does not move into building or out of map
-    new = pos + random.normal(rng, pos.shape) * env.cfg.noise
-    mask = ((new < 0).any(axis=-1) | ((new >= env.cfg.size).any(axis=-1)) | (env.map[*jnp.int32(new).T] > 0))[..., None]
-    return jnp.where(mask, pos, new)
+    raise NotImplementedError("push_fn is not implemented yet")

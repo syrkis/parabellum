@@ -1,0 +1,193 @@
+hydra:
+  run:
+    dir: .
+  sweep:
+    dir: .
+    subdir: .
+  launcher:
+    _target_: hydra._internal.core_plugins.basic_launcher.BasicLauncher
+  sweeper:
+    _target_: hydra._internal.core_plugins.basic_sweeper.BasicSweeper
+    max_batch_size: null
+    params: null
+  help:
+    app_name: ${hydra.job.name}
+    header: '${hydra.help.app_name} is powered by Hydra.
+
+      '
+    footer: 'Powered by Hydra (https://hydra.cc)
+
+      Use --hydra-help to view Hydra specific help
+
+      '
+    template: '${hydra.help.header}
+
+      == Configuration groups ==
+
+      Compose your configuration from those groups (group=option)
+
+
+      $APP_CONFIG_GROUPS
+
+
+      == Config ==
+
+      Override anything in the config (foo.bar=value)
+
+
+      $CONFIG
+
+
+      ${hydra.help.footer}
+
+      '
+  hydra_help:
+    template: 'Hydra (${hydra.runtime.version})
+
+      See https://hydra.cc for more info.
+
+
+      == Flags ==
+
+      $FLAGS_HELP
+
+
+      == Configuration groups ==
+
+      Compose your configuration from those groups (For example, append hydra/job_logging=disabled
+      to command line)
+
+
+      $HYDRA_CONFIG_GROUPS
+
+
+      Use ''--cfg hydra'' to Show the Hydra config.
+
+      '
+    hydra_help: ???
+  hydra_logging:
+    version: 1
+    root:
+      level: ERROR
+    disable_existing_loggers: true
+  job_logging:
+    version: 1
+    root:
+      level: ERROR
+    disable_existing_loggers: true
+  env: {}
+  mode: MULTIRUN
+  searchpath: []
+  callbacks: {}
+  output_subdir: null
+  overrides:
+    hydra:
+    - hydra.mode=MULTIRUN
+    - hydra.output_subdir=null
+    - hydra.run.dir=.
+    - hydra.sweep.dir=.
+    - hydra.sweep.subdir=.
+    - hydra/job_logging=disabled
+    - hydra/hydra_logging=disabled
+    task: []
+  job:
+    name: main
+    chdir: null
+    override_dirname: ''
+    id: ???
+    num: ???
+    config_name: config
+    env_set: {}
+    env_copy: []
+    config:
+      override_dirname:
+        kv_sep: '='
+        item_sep: ','
+        exclude_keys: []
+  runtime:
+    version: 1.3.2
+    version_base: '1.3'
+    cwd: /Users/nobr/desk/parabellum
+    config_sources:
+    - path: hydra.conf
+      schema: pkg
+      provider: hydra
+    - path: /Users/nobr/desk/parabellum/conf
+      schema: file
+      provider: main
+    - path: ''
+      schema: structured
+      provider: schema
+    output_dir: ???
+    choices:
+      hydra/env: default
+      hydra/callbacks: null
+      hydra/job_logging: disabled
+      hydra/hydra_logging: disabled
+      hydra/hydra_help: default
+      hydra/help: default
+      hydra/sweeper: basic
+      hydra/launcher: basic
+      hydra/output: default
+  verbose: false
+steps: 200
+place: Palazzo della Civiltà Italiana, Rome, Italy
+force: 0.5
+noise: 3
+sims: 2
+size: 128
+knn: 10
+teams:
+  blu:
+    troop: 3
+    armor: 3
+    plane: 3
+    civil: 0
+    medic: 0
+  red:
+    troop: 3
+    armor: 3
+    plane: 3
+    civil: 0
+    medic: 0
+rules:
+  troop:
+    health: 120
+    damage: 15
+    radius: 1
+    speed: 2
+    reach: 4
+    sight: 128
+    blast: 1
+  armor:
+    health: 120
+    damage: 15
+    radius: 1
+    speed: 2
+    reach: 4
+    sight: 128
+    blast: 1
+  plane:
+    health: 120
+    damage: 15
+    radius: 1
+    speed: 2
+    reach: 4
+    sight: 128
+    blast: 1
+  civil:
+    health: 120
+    damage: 15
+    radius: 1
+    speed: 2
+    reach: 4
+    sight: 128
+    blast: 1
+  medic:
+    health: 120
+    damage: 15
+    radius: 1
+    speed: 2
+    reach: 4
+    sight: 128
+    blast: 1
