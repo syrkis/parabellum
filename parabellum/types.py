@@ -5,6 +5,8 @@
 # imports
 from chex import dataclass
 from jaxtyping import Array, Bool
+from jax import lax
+import jax.numpy as jnp
 # from parabellum.geo import geography_fn
 
 
@@ -30,11 +32,11 @@ class Obs:
 
     @property
     def ally(self):
-        return (self.team == self.team[0]) & self.mask
+        return self.team == self.team[..., 0, None] & self.mask
 
     @property
     def enemy(self):
-        return (self.team != self.team[0]) & self.mask
+        return self.team != self.team[..., 0, None] & self.mask
 
 
 @dataclass

@@ -6,11 +6,12 @@
 from functools import partial
 from typing import Tuple
 
-from jax import jit, lax, random, vmap
+from jax import jit, lax, random, vmap, tree
 from jaxtyping import Array
 
 import parabellum as pb
 import mlxp
+import jax.numpy as jnp
 from parabellum.types import Action, State
 
 
@@ -38,6 +39,12 @@ def main(ctx: mlxp.Context) -> None:
     init_key, traj_key = random.split(random.PRNGKey(0), (2, ctx.config.sims))
     obs, state = vmap(jit(env.init))(init_key)
     state, (seq, action) = vmap(jit(partial(traj_fn, env)))(state, init_key)
+    # print(tree.map(lambda x: x[0], obs).type)
+    for t in [obs, tree.map(lambda x: x[-1], obs), tree.map(lambda x: x[-1, -1], obs)]:
+        print()
+        print()
+        print()
+        print(t.ally)
 
 
 if __name__ == "__main__":
