@@ -5,17 +5,20 @@
 # Imports
 from functools import partial
 from typing import Tuple
+
 from cachier import cachier
 import jax.numpy as jnp
+import numpy as np
 import jaxkd as jk
 import geopandas as gpd
 import osmnx as ox
 from geopy.geocoders import Nominatim
-from jax import random
+from jax import random, debug
 from jaxtyping import Array
 from omegaconf import DictConfig
 from rasterio import features, transform
 from shapely.geometry import box, Point
+import matplotlib.pyplot as plt
 
 from parabellum.types import Action, Obs, State
 
@@ -27,6 +30,7 @@ class Env:
         self.cfg = cfg
         self.map = world_fn(cfg)
         self.num = sum([sum(x.values()) for x in cfg.teams.values()])
+        self.see = int((self.num / jnp.log(self.num)).item())
 
         # length n units
         self.types = jnp.concat([jnp.repeat(jnp.arange(5), jnp.array(list(x.values()))) for x in cfg.teams.values()])
@@ -62,7 +66,7 @@ def world_fn(cfg):
     data = data.to_crs(data.estimate_utm_crs())
 
     # Create a point from the location and project it
-    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326").to_crs(data.crs).iloc[0] # type: ignore
+    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326").to_crs(data.crs).iloc[0]  # type: ignore
 
     # Create exact square bounding box centered on location
     bbox = box(center.x - cfg.size // 2, center.y - cfg.size // 2, center.x + cfg.size // 2, center.y + cfg.size // 2)
@@ -85,10 +89,9 @@ def world_fn(cfg):
 
 # %% Functions
 def init_fn(env: Env, rng: Array) -> State:
-    prob = jnp.ones((env.cfg.size, env.cfg.size)).at[env.map].set(0).flatten()  # Set
+    prob = (1 - env.map).flatten()
     flat = random.choice(rng, jnp.arange(prob.size), shape=(env.types.size,), p=prob, replace=True)
-    idxs = (flat // len(env.map), flat % len(env.map))
-    pos = jnp.float32(jnp.column_stack(idxs))
+    pos = jnp.float32(jnp.column_stack((flat // env.cfg.size, flat % env.cfg.size)))
     return State(pos=pos, hp=jnp.float32(env.health[env.types]))
 
 
@@ -136,4 +139,4 @@ def push_fn(env: Env, rng: Array, idx: Array, norm: Array, pos: Array) -> Array:
     pos_diff = pos[:, None, :] - pos[idx]  # direction away from neighbors
     mask = (norm < env.radius[env.types][..., None]) & (norm > 0)
     pos = pos + jnp.where(mask[..., None], pos_diff * env.cfg.force / (norm[..., None] + 1e-6), 0.0).sum(axis=1)
-    return pos + random.normal(rng, pos.shape) * 0.1
+    return pos + random.normal(rng, pos.shape) * env.cfg.noise

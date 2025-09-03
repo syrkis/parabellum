@@ -1,6 +1,7 @@
 steps: 123
 place: "Palazzo della Civiltà Italiana, Rome, Italy"
 force: 0.5
+noise: 0.01
 sims: 2
 size: 256
 knn: 2
