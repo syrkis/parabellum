@@ -38,6 +38,10 @@ class Obs:
     def enemy(self):
         return self.team != self.team[..., 0, None] & self.mask
 
+    @property
+    def krypt(self):
+        return (self.type == (self.type[..., 0, None] + 1) % 3) & self.enemy
+
 
 @dataclass
 class Action:

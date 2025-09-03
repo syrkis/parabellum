@@ -44,7 +44,7 @@ def main(ctx: mlxp.Context) -> None:
         print()
         print()
         print()
-        print(t.ally)
+        print(t.krypt)
 
 
 if __name__ == "__main__":
