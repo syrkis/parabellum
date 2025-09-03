@@ -39,12 +39,7 @@ def main(ctx: mlxp.Context) -> None:
     init_key, traj_key = random.split(random.PRNGKey(0), (2, ctx.config.sims))
     obs, state = vmap(jit(env.init))(init_key)
     state, (seq, action) = vmap(jit(partial(traj_fn, env)))(state, init_key)
-    # print(tree.map(lambda x: x[0], obs).type)
-    for t in [obs, tree.map(lambda x: x[-1], obs), tree.map(lambda x: x[-1, -1], obs)]:
-        print()
-        print()
-        print()
-        print(t.krypt)
+    pb.utils.gif_fn(env, tree.map(lambda x: x[0], seq), "test")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,9 @@
 import jax.numpy as jnp
 import numpy as np
 from einops import rearrange, repeat
-from jax import tree
+from jax import tree, lax
+from jaxtyping import Array
+from functools import partial
 from PIL import Image
 # from parabellum.types import Config
 
@@ -17,13 +19,16 @@ blue = "#2B60F6"
 
 
 # %% Plotting
-def gif_fn(cfg, seq, scale=4):  # animate positions TODO: remove dead units
-    pos = seq.pos.astype(int)
-    cord = jnp.concat((jnp.arange(pos.shape[0]).repeat(pos.shape[1])[..., None], pos.reshape(-1, 2)), axis=1).T
-    idxs = cord[:, seq.hp.flatten().astype(bool) > 0]
-    imgs = 1 - np.array(repeat(cfg.map, "... -> a ...", a=len(pos)).at[*idxs].set(1))
-    imgs = [Image.fromarray(img).resize(np.array(img.shape[:2]) * scale, Image.NEAREST) for img in imgs * 255]  # type: ignore
-    imgs[0].save("/Users/nobr/desk/s3/btc2sim/sims.gif", save_all=True, append_images=imgs[1:], duration=10, loop=0)
+def quantize_fn(env, state) -> Array:  # for plotting and vision processing # TODO: add unit type color
+    img = repeat(1 - env.map, "... -> ... 3") * 255
+    col = jnp.where(env.teams[..., None] == 1, jnp.array((10, 90, 230)), jnp.array((230, 10, 90)))
+    return img.at[*jnp.int32(state.pos).T].set(col)
+
+
+def gif_fn(env, seq, fname, scale=4):  # animate positions TODO: remove dead units
+    imgs = np.array(lax.map(partial(quantize_fn, env), seq), dtype=np.uint8)
+    imgs = [Image.fromarray(e).resize(np.array(e.shape[:2]) * scale, Image.NEAREST) for e in imgs]  # type: ignore
+    imgs[0].save(f"/Users/nobr/desk/s3/nebellum/{fname}.gif", save_all=True, append_images=imgs[1:], duration=24, loop=0)
 
 
 # def svg_fn(cfg, seq, action, fname, targets=None, fps=2, debug=False):

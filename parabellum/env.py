@@ -97,7 +97,7 @@ def init_fn(env: Env, rng: Array) -> State:
 
 def obs_fn(env: Env, state: State) -> Obs:  # return info about neighbors ---
     idxs, dist = jk.extras.query_neighbors_pairwise(state.pos, state.pos, k=env.cfg.knn)
-    mask: Array = dist < env.sight[env.types[idxs][:, 0]][..., None]  # | (state.hp[idxs] > 0)
+    mask: Array = dist < env.sight[env.types[idxs][:, 0]][..., None] | (state.hp[idxs] > 0)
     pos: Array = (state.pos[idxs] - state.pos[:, None, ...]).at[:, 0, :].set(state.pos) * mask[..., None]
     args = state.hp, env.types, env.teams, env.reach, env.sight, env.speed
     hp, type, team, reach, sight, speed = map(lambda x: x[idxs] * mask, args)
@@ -116,27 +116,31 @@ def obs_fn(env: Env, state: State) -> Obs:  # return info about neighbors ---
 
 
 def step_fn(env: Env, rng: Array, state: State, action: Action) -> State:
-    idx, norm = jk.extras.query_neighbors_pairwise(state.pos + action.pos, state.pos, k=2)
+    idx, norm = jk.extras.query_neighbors_pairwise(state.pos + action.pos, state.pos, k=2)  # neast neighs?
     args = rng, env, state, action, idx, norm
     return State(pos=partial(push_fn, env, rng, idx, norm)(move_fn(*args)), hp=blast_fn(*args))  # type: ignore
 
 
 def move_fn(rng: Array, env: Env, state: State, action: Action, idx: Array, norm: Array) -> Array:
-    speed = env.speed[env.types][..., None]  # max speed of a unit (step size, really)
+    speed = (env.speed[env.types] * (state.hp > 0))[..., None]  # max speed of a unit (step size, really)
     pos = state.pos + action.pos.clip(-speed, speed) * action.move[..., None]  # new poss
     mask = ((pos < 0).any(axis=-1) | ((pos >= env.cfg.size).any(axis=-1)) | (env.map[*jnp.int32(pos).T] > 0))[..., None]
     return jnp.where(mask, state.pos, pos)  # compute new position
 
 
 def blast_fn(rng: Array, env: Env, state: State, action: Action, idx: Array, norm: Array) -> Array:
-    dam = (env.damage[env.types] * action.cast)[..., None] * jnp.ones_like(idx)
+    dam = (env.damage[env.types] * action.cast * (state.hp > 0))[..., None] * jnp.ones_like(idx)
     return jnp.float32(state.hp - jnp.zeros(env.types.size).at[idx.flatten()].add(dam.flatten()))
 
 
 def push_fn(env: Env, rng: Array, idx: Array, norm: Array, pos: Array) -> Array:
-    return pos + random.normal(rng, pos.shape)
+    # return pos + random.normal(rng, pos.shape)
     # params need to be tweaked, and matched with unit size
-    pos_diff = pos[:, None, :] - pos[idx]  # direction away from neighbors
-    mask = (norm < env.radius[env.types][..., None]) & (norm > 0)
-    pos = pos + jnp.where(mask[..., None], pos_diff * env.cfg.force / (norm[..., None] + 1e-6), 0.0).sum(axis=1)
-    return pos + random.normal(rng, pos.shape) * env.cfg.noise
+    # pos_diff = pos[:, None, :] - pos[idx]  # direction away from neighbors
+    # mask = (norm < env.radius[env.types][..., None]) & (norm > 0)
+    # pos = pos + jnp.where(mask[..., None], pos_diff * env.cfg.force / (norm[..., None] + 1e-6), 0.0).sum(axis=1)
+
+    # add random noise and check it does not move into building or out of map
+    new = pos + random.normal(rng, pos.shape) * env.cfg.noise
+    mask = ((new < 0).any(axis=-1) | ((new >= env.cfg.size).any(axis=-1)) | (env.map[*jnp.int32(new).T] > 0))[..., None]
+    return jnp.where(mask, pos, new)
