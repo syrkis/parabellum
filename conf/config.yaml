@@ -10,13 +10,13 @@ teams:
   blu:
     troop: 3
     armor: 3
-    plane: 0
+    plane: 3
     civil: 0
-    medic: 1
+    medic: 0
   red:
     troop: 3
     armor: 3
-    plane: 0
+    plane: 3
     civil: 0
     medic: 0
 

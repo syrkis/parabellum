@@ -39,7 +39,7 @@ class Obs:
         return self.team != self.team[..., 0, None] & self.mask
 
     @property
-    def krypt(self):
+    def krypt(self):  # hard coding rules
         return (self.type == (self.type[..., 0, None] + 1) % 3) & self.enemy
 
 
