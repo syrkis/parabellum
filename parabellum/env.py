@@ -29,7 +29,7 @@ class Env:
     def __init__(self, cfg: DictConfig):
         # config
         self.cfg = cfg
-        self.map, self.image = world_fn(cfg)
+        self.map = jnp.array(world_fn(cfg.place, cfg.size))
         self.num = sum([sum(x.values()) for x in cfg.teams.values()])
         self.see = int((self.num / jnp.log(self.num)).item())
 
@@ -56,21 +56,20 @@ class Env:
 
 
 # @cachier()
-def world_fn(cfg):
+def world_fn(place, size):
     # Get location coordinates
-    location = Nominatim(user_agent="parabellum").geocode(cfg.place)
+    location = Nominatim(user_agent="parabellum").geocode(place)
 
     # Get building footprints from OSM within a radius
-    data = ox.features_from_point((location.latitude, location.longitude), tags={"building": True}, dist=cfg.size // 2)
+    data = ox.features_from_point((location.latitude, location.longitude), tags={"building": True}, dist=size // 2)
 
     # Project to a metric CRS to work in meters
     data = data.to_crs(data.estimate_utm_crs())
 
     # Create a point from the location and project it
     center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326").to_crs(data.crs).iloc[0]  # type: ignore
-
     # Create exact square bounding box centered on location
-    bbox = box(center.x - cfg.size // 2, center.y - cfg.size // 2, center.x + cfg.size // 2, center.y + cfg.size // 2)
+    bbox = box(center.x - size // 2, center.y - size // 2, center.x + size // 2, center.y + size // 2)
 
     # Clip buildings to exact bounding box
     data["geometry"] = data.geometry.clip(bbox)
@@ -79,59 +78,49 @@ def world_fn(cfg):
     data = data[~data.geometry.is_empty & data.geometry.is_valid & data.geometry.notna()]
 
     # Transformation stuff - now using the exact bbox bounds
-    t = transform.from_bounds(*bbox.bounds, cfg.size, cfg.size)  # type: ignore
+    t = transform.from_bounds(*bbox.bounds, size, size)  # type: ignore
 
     # Rasterize buildings into a binary grid
-    raster = features.rasterize([(geom, 1) for geom in data.geometry if geom], (cfg.size, cfg.size), transform=t)
+    raster = features.rasterize([(geom, 1) for geom in data.geometry if geom], (size, size), transform=t)
 
-    # Get satellite image of raster
-    image = satelite_fn(location, cfg.size)
-
-    fig, axes = plt.subplots(1, 2, figsize=(10, 5))
-    axes[0].imshow(image)
-    axes[1].imshow(raster)
-    plt.show()
-    exit()
-
-    # put map into jax
-    return jnp.array(raster), image
+    return raster
 
 
-def satelite_fn(location, size):
-    # Create a point from the location
-    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326")
+# def satelite_fn(location, size):
+#     # Create a point from the location
+#     center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326")
 
-    # Project to UTM for metric calculations
-    utm_crs = center.estimate_utm_crs()
-    center_utm = center.to_crs(utm_crs).iloc[0]
+#     # Project to UTM for metric calculations
+#     utm_crs = center.estimate_utm_crs()
+#     center_utm = center.to_crs(utm_crs).iloc[0]
 
-    # Create exact square bounding box centered on location (same as in world_fn)
-    bbox = box(center_utm.x - size // 2, center_utm.y - size // 2, center_utm.x + size // 2, center_utm.y + size // 2)
+#     # Create exact square bounding box centered on location (same as in world_fn)
+#     bbox = box(center_utm.x - size // 2, center_utm.y - size // 2, center_utm.x + size // 2, center_utm.y + size // 2)
 
-    # Convert back to lat/lon for contextily
-    bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs=utm_crs)
-    bbox_latlon = bbox_gdf.to_crs("EPSG:4326")
-    bounds = bbox_latlon.bounds.iloc[0]  # west, south, east, north
+#     # Convert back to lat/lon for contextily
+#     bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs=utm_crs)
+#     bbox_latlon = bbox_gdf.to_crs("EPSG:4326")
+#     bounds = bbox_latlon.bounds.iloc[0]  # west, south, east, north
 
-    # Get satellite image from contextily
-    img, extent = ctx.bounds2img(
-        bounds.minx, bounds.miny, bounds.maxx, bounds.maxy, zoom="auto", source=ctx.providers.Esri.WorldImagery, ll=True
-    )  # ll=True means bounds are in lat/lon
+#     # Get satellite image from contextily
+#     img, extent = ctx.bounds2img(
+#         bounds.minx, bounds.miny, bounds.maxx, bounds.maxy, zoom="auto", source=ctx.providers.Esri.WorldImagery, ll=True
+#     )  # ll=True means bounds are in lat/lon
 
-    # Resize the image to exact dimensions (size x size)
-    from PIL import Image
+#     # Resize the image to exact dimensions (size x size)
+#     from PIL import Image
 
-    # Convert numpy array to PIL Image
-    if len(img.shape) == 3:
-        pil_img = Image.fromarray(img)
-    else:
-        pil_img = Image.fromarray(img, mode="L")
+#     # Convert numpy array to PIL Image
+#     if len(img.shape) == 3:
+#         pil_img = Image.fromarray(img)
+#     else:
+#         pil_img = Image.fromarray(img, mode="L")
 
-    # Resize to exact dimensions
-    resized_img = pil_img.resize((size, size), Image.Resampling.LANCZOS)
+#     # Resize to exact dimensions
+#     resized_img = pil_img.resize((size, size), Image.Resampling.LANCZOS)
 
-    # Convert back to numpy array
-    return np.array(resized_img)
+#     # Convert back to numpy array
+#     return np.array(resized_img)
 
 
 # %% Functions
