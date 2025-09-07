@@ -1,6 +1,6 @@
 [project]
 name = "parabellum"
-version = "0.0.137"
+version = "0.0.141"
 description = "Parabellum environment for parallel warfare simulation"
 authors = [{ name = "Noah Syrkis", email = "desk@syrkis.com" }]
 requires-python = ">=3.11,<3.12"
@@ -11,7 +11,6 @@ dependencies = [
     "einops>=0.8.0,<0.9",
     "cartopy>=0.23.0,<0.24",
     "cachier>=3.1.2,<4",
-    "jaxkd==0.1.0",
     "chex>=0.1.82,<0.1.89",
     "jaxtyping>=0.3.2",
     "rasterio>=1.4.3",
@@ -20,6 +19,7 @@ dependencies = [
     "mlxp>=1.0.4",
     "jax<=0.5",
     "contextily>=1.6.2",
+    "jaxkd>=0.1.2",
 ]
 
 [dependency-groups]

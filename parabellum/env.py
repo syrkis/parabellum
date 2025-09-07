@@ -3,24 +3,23 @@
 # by: Noah Syrkis
 
 # Imports
-from functools import partial
 from typing import Tuple
 
-from cachier import cachier
-import jax.numpy as jnp
-import numpy as np
-import jaxkd as jk
 import geopandas as gpd
+import jax.numpy as jnp
+import jaxkd as jk
 import osmnx as ox
+from cachier import cachier
 from geopy.geocoders import Nominatim
-from jax import random, debug
+from jax import random
 from jaxtyping import Array
 from omegaconf import DictConfig
 from rasterio import features, transform
-from shapely.geometry import box, Point
-import matplotlib.pyplot as plt
-import contextily as ctx
+from shapely.geometry import Point, box
 
+# import numpy as np
+# import matplotlib.pyplot as plt
+# import contextily as ctx
 from parabellum.types import Action, Obs, State
 
 
@@ -36,6 +35,10 @@ class Env:
         # length n units
         self.types = jnp.concat([jnp.repeat(jnp.arange(5), jnp.array(list(x.values()))) for x in cfg.teams.values()])
         self.teams = jnp.repeat(jnp.arange(2), jnp.array((sum(cfg.teams.blu.values()), sum(cfg.teams.red.values()))))
+
+        # constans
+        self.blu_num = self.teams.sum().item()
+        self.red_num = self.num - self.blu_num
 
         # length n types
         self.damage = jnp.array(list(map(lambda x: getattr(x, "damage"), cfg.rules.values())))
@@ -55,7 +58,7 @@ class Env:
         return obs_fn(self, state), state
 
 
-# @cachier()
+@cachier()
 def world_fn(place, size):
     # Get location coordinates
     location = Nominatim(user_agent="parabellum").geocode(place)
@@ -86,49 +89,18 @@ def world_fn(place, size):
     return raster
 
 
-# def satelite_fn(location, size):
-#     # Create a point from the location
-#     center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326")
-
-#     # Project to UTM for metric calculations
-#     utm_crs = center.estimate_utm_crs()
-#     center_utm = center.to_crs(utm_crs).iloc[0]
-
-#     # Create exact square bounding box centered on location (same as in world_fn)
-#     bbox = box(center_utm.x - size // 2, center_utm.y - size // 2, center_utm.x + size // 2, center_utm.y + size // 2)
-
-#     # Convert back to lat/lon for contextily
-#     bbox_gdf = gpd.GeoDataFrame([1], geometry=[bbox], crs=utm_crs)
-#     bbox_latlon = bbox_gdf.to_crs("EPSG:4326")
-#     bounds = bbox_latlon.bounds.iloc[0]  # west, south, east, north
-
-#     # Get satellite image from contextily
-#     img, extent = ctx.bounds2img(
-#         bounds.minx, bounds.miny, bounds.maxx, bounds.maxy, zoom="auto", source=ctx.providers.Esri.WorldImagery, ll=True
-#     )  # ll=True means bounds are in lat/lon
-
-#     # Resize the image to exact dimensions (size x size)
-#     from PIL import Image
-
-#     # Convert numpy array to PIL Image
-#     if len(img.shape) == 3:
-#         pil_img = Image.fromarray(img)
-#     else:
-#         pil_img = Image.fromarray(img, mode="L")
-
-#     # Resize to exact dimensions
-#     resized_img = pil_img.resize((size, size), Image.Resampling.LANCZOS)
-
-#     # Convert back to numpy array
-#     return np.array(resized_img)
-
-
 # %% Functions
 def init_fn(env: Env, rng: Array) -> State:
-    prob = (1 - env.map).flatten()
-    flat = random.choice(rng, jnp.arange(prob.size), shape=(env.types.size,), p=prob, replace=True)
-    pos = jnp.float32(jnp.column_stack((flat // env.cfg.size, flat % env.cfg.size)))
+    pos = spawn(env, rng)
     return State(pos=pos, hp=jnp.float32(env.health[env.types]))
+
+
+def spawn(env, rng) -> Array:
+    loc = jnp.zeros_like(env.map).at[jnp.arange(env.cfg.size // 4), jnp.arange(env.cfg.size // 4)].set(1)
+    aux = lambda x, loc: random.choice(rng, jnp.arange(env.cfg.size**2), (x,), True, ((1 - env.map) & loc).flatten())  # noqa
+    flat = jnp.concatenate((aux(env.blu_num, loc), aux(env.red_num, jnp.flip(loc).T)))
+    pos = jnp.float32(jnp.column_stack((flat // env.cfg.size, flat % env.cfg.size)))
+    return pos
 
 
 def obs_fn(env: Env, state: State) -> Obs:  # return info about neighbors ---
@@ -138,17 +110,9 @@ def obs_fn(env: Env, state: State) -> Obs:  # return info about neighbors ---
     args = state.hp, env.types, env.teams, env.reach, env.sight, env.speed
     hp, type, team, reach, sight, speed = map(lambda x: x[idxs] * mask, args)
     return Obs(
-        pos=pos,
-        dist=dist,
-        hp=hp,
-        type=type,
-        team=team,
-        reach=reach,
-        sight=sight,
-        speed=speed,
-        mask=mask,
-        idx=idxs * mask,  # TODO: note that units not in sight has idx 0 (but so does the first unit)
+        pos=pos, dist=dist, hp=hp, type=type, team=team, reach=reach, sight=sight, speed=speed, mask=mask, idx=idxs * mask
     )
+    # ,  # TODO: note that units not in sight has idx 0 (but so does the first unit of blue team)
 
 
 def step_fn(env: Env, rng: Array, state: State, action: Action) -> State:
