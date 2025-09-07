@@ -32,11 +32,11 @@ class Obs:
 
     @property
     def ally(self):
-        return self.team == self.team[..., 0, None] & self.mask
+        return (self.team == self.team[..., 0, None]) & self.mask
 
     @property
     def enemy(self):
-        return self.team != self.team[..., 0, None] & self.mask
+        return (self.team != self.team[..., 0, None]) & self.mask
 
     @property
     def krypt(self):  # hard coding rules

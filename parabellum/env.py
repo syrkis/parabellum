@@ -37,8 +37,8 @@ class Env:
         self.teams = jnp.repeat(jnp.arange(2), jnp.array((sum(cfg.teams.blu.values()), sum(cfg.teams.red.values()))))
 
         # constans
-        self.blu_num = self.teams.sum().item()
-        self.red_num = self.num - self.blu_num
+        self.blu_num = sum(cfg.teams["blu"].values())
+        self.red_num = sum(cfg.teams["red"].values())
 
         # length n types
         self.damage = jnp.array(list(map(lambda x: getattr(x, "damage"), cfg.rules.values())))
