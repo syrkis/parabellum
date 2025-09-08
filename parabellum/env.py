@@ -8,19 +8,29 @@ from typing import Tuple
 import geopandas as gpd
 import jax.numpy as jnp
 import jaxkd as jk
+from einops import rearrange
+
+from io import BytesIO
 import osmnx as ox
+from PIL import Image
 from cachier import cachier
 from geopy.geocoders import Nominatim
 from jax import random
 from jaxtyping import Array
 from omegaconf import DictConfig
+import seaborn as sns
 from rasterio import features, transform
 from shapely.geometry import Point, box
 
-# import numpy as np
-# import matplotlib.pyplot as plt
-# import contextily as ctx
+import numpy as np
+import matplotlib.pyplot as plt
+
+import contextily as ctx
 from parabellum.types import Action, Obs, State
+
+
+#  %% Constants
+provider = ctx.providers.OpenStreetMap.BZH  # type: ignore
 
 
 # %% Dataclass
@@ -28,7 +38,7 @@ class Env:
     def __init__(self, cfg: DictConfig):
         # config
         self.cfg = cfg
-        self.map = jnp.array(world_fn(cfg.place, cfg.size))
+        self.map, self.img, self.raw = world_fn(cfg.place, cfg.size)
         self.num = sum([sum(x.values()) for x in cfg.teams.values()])
         self.see = int((self.num / jnp.log(self.num)).item())
 
@@ -58,35 +68,46 @@ class Env:
         return obs_fn(self, state), state
 
 
-@cachier()
+# @cachier()
 def world_fn(place, size):
     # Get location coordinates
-    location = Nominatim(user_agent="parabellum").geocode(place)
+    loc = Nominatim(user_agent="parabellum").geocode(place)
 
     # Get building footprints from OSM within a radius
-    data = ox.features_from_point((location.latitude, location.longitude), tags={"building": True}, dist=size // 2)
+    data = ox.features_from_point((loc.latitude, loc.longitude), tags={"building": True}, dist=size // 2).to_crs("EPSG:32633")
 
-    # Project to a metric CRS to work in meters
-    data = data.to_crs(data.estimate_utm_crs())
+    # data into data frame
+    gdf = gpd.GeoDataFrame(data)
 
-    # Create a point from the location and project it
-    center = gpd.GeoSeries([Point(location.longitude, location.latitude)], crs="EPSG:4326").to_crs(data.crs).iloc[0]  # type: ignore
-    # Create exact square bounding box centered on location
-    bbox = box(center.x - size // 2, center.y - size // 2, center.x + size // 2, center.y + size // 2)
+    # setup basic axes
+    fig, axes = plt.subplots(2, 1, figsize=(10, 20))
 
-    # Clip buildings to exact bounding box
-    data["geometry"] = data.geometry.clip(bbox)
+    # Plot building geometry on both axes
+    gdf.plot(ax=axes[0])
 
-    # Filter out empty/invalid geometries
-    data = data[~data.geometry.is_empty & data.geometry.is_valid & data.geometry.notna()]
+    # for context to know what to do
+    gdf.plot(ax=axes[1], edgecolor="none", alpha=0.0, color="none")
 
-    # Transformation stuff - now using the exact bbox bounds
-    t = transform.from_bounds(*bbox.bounds, size, size)  # type: ignore
+    # add context
+    ctx.add_basemap(axes[1], crs=data.crs, source=provider)  # type: ignore
 
-    # Rasterize buildings into a binary grid
-    raster = features.rasterize([(geom, 1) for geom in data.geometry if geom], (size, size), transform=t)
+    # Ensure the plot is saved correctly
+    plt.tight_layout()
+    axes[0].axis("off")
+    axes[1].axis("off")
+    # Save the plots to variables
+    buf = BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    plt.close()
 
-    return raster
+    raster, image = rearrange(np.array(Image.open(buf)), "(d h) w n -> d h w n", d=2)
+
+    raster = (((255 - np.array(Image.fromarray(raster).resize((size, size)))[:, :, 0]) / 255) > 0) * 1
+
+    img = jnp.array(Image.fromarray(image[:, :, :-1]).resize((size, size)))
+
+    return jnp.array(raster), img, image[:, :, :-1]
 
 
 # %% Functions

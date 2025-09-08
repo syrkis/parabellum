@@ -18,7 +18,8 @@ from parabellum.types import Action, State
 # %% Functions
 def action_fn(env: pb.Env, rng: Array) -> Action:
     pos = random.uniform(rng, (env.types.size, 2), minval=-1, maxval=1) * env.reach[env.types][..., None]
-    move = random.randint(rng, (env.types.size,), minval=0, maxval=2) == 1
+    # move = random.randint(rng, (env.types.size,), minval=0, maxval=1) == 1
+    move = jnp.ones(env.types.size, dtype=jnp.bool_)
     return Action(pos=pos, move=move)
 
 
@@ -39,7 +40,8 @@ def main(ctx: mlxp.Context) -> None:
     init_key, traj_key = random.split(random.PRNGKey(0), (2, ctx.config.sims))
     obs, state = vmap(jit(env.init))(init_key)
     state, (seq, action) = vmap(jit(partial(traj_fn, env)))(state, init_key)
-    pb.utils.gif_fn(env, tree.map(lambda x: x[0], seq), "test")
+    gif = pb.utils.gif_fn(env, tree.map(lambda x: x[0], seq))
+    gif[0].save("noah.gif", save_all=True, append_images=gif[1:], duration=24, loop=0)
 
 
 if __name__ == "__main__":
